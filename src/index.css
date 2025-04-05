@@ -54,7 +54,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 
   .code-block {
@@ -76,4 +76,49 @@
   .code-line:nth-child(8) { animation-delay: 0.8s; }
   .code-line:nth-child(9) { animation-delay: 0.9s; }
   .code-line:nth-child(10) { animation-delay: 1.0s; }
+  
+  /* Futuristic effects */
+  .glow-effect {
+    @apply relative;
+  }
+
+  .glow-effect::before {
+    @apply content-[''] absolute -inset-1 bg-gradient-to-r from-primary to-secondary opacity-30 blur-sm rounded-lg -z-10;
+  }
+
+  .glass-effect {
+    @apply backdrop-blur-md bg-white/5 border border-white/10;
+  }
+
+  .grid-background {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
+
+@layer components {
+  .button-glow {
+    @apply relative;
+  }
+
+  .button-glow::before {
+    @apply content-[''] absolute inset-0 bg-gradient-to-r from-primary to-secondary opacity-0 blur-md rounded-md -z-10 transition-opacity duration-300;
+  }
+
+  .button-glow:hover::before {
+    @apply opacity-50;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.pulse-effect {
+  animation: pulse-glow 3s infinite;
 }
