@@ -7,118 +7,72 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 54%;
 
-    --card: 222 47% 13%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 80%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 0%;
+    --popover-foreground: 0 0% 54%;
 
-    --primary: 196 80% 60%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 199 100% 50%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 260 60% 50%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 60%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 42%;
 
-    --accent: 217.2 32.6% 20%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 20%;
-    --input: 217.2 32.6% 20%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 0 0% 17%;
+    --input: 0 0% 12%;
+    --ring: 0 0% 54%;
 
     --radius: 0.5rem;
-
-    --sidebar-background: 222 47% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 196 80% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217.2 32.6% 15%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 20%;
-    --sidebar-ring: 196 80% 60%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
-  }
-
-  .code-block {
-    @apply font-mono text-sm bg-code text-code-foreground rounded-md p-4 overflow-x-auto;
-  }
-
-  .code-line {
-    @apply opacity-0;
-    animation: code-flow 0.3s ease-out forwards;
-  }
-
-  .code-line:nth-child(1) { animation-delay: 0.1s; }
-  .code-line:nth-child(2) { animation-delay: 0.2s; }
-  .code-line:nth-child(3) { animation-delay: 0.3s; }
-  .code-line:nth-child(4) { animation-delay: 0.4s; }
-  .code-line:nth-child(5) { animation-delay: 0.5s; }
-  .code-line:nth-child(6) { animation-delay: 0.6s; }
-  .code-line:nth-child(7) { animation-delay: 0.7s; }
-  .code-line:nth-child(8) { animation-delay: 0.8s; }
-  .code-line:nth-child(9) { animation-delay: 0.9s; }
-  .code-line:nth-child(10) { animation-delay: 1.0s; }
-  
-  /* Futuristic effects */
-  .glow-effect {
-    @apply relative;
-  }
-
-  .glow-effect::before {
-    @apply content-[''] absolute -inset-1 bg-gradient-to-r from-primary to-secondary opacity-30 blur-sm rounded-lg -z-10;
-  }
-
-  .glass-effect {
-    @apply backdrop-blur-md bg-white/5 border border-white/10;
-  }
-
-  .grid-background {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 }
 
-@layer components {
-  .button-glow {
-    @apply relative;
+// Add some additional dark mode utilities
+@layer utilities {
+  .glass-dark {
+    @apply backdrop-blur-xl bg-black/40 border border-white/10 shadow-dark-lg;
   }
 
-  .button-glow::before {
-    @apply content-[''] absolute inset-0 bg-gradient-to-r from-primary to-secondary opacity-0 blur-md rounded-md -z-10 transition-opacity duration-300;
-  }
-
-  .button-glow:hover::before {
-    @apply opacity-50;
+  .text-gradient-dark {
+    @apply bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 bg-clip-text text-transparent;
   }
 }
 
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 0.8;
-  }
+// Scrollbar styling for dark theme
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-.pulse-effect {
-  animation: pulse-glow 3s infinite;
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A2A2A;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3A3A3A;
 }
