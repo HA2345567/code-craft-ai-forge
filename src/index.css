@@ -48,7 +48,7 @@
   }
 }
 
-// Add some additional dark mode utilities
+/* Add some additional dark mode utilities */
 @layer utilities {
   .glass-dark {
     @apply backdrop-blur-xl bg-black/40 border border-white/10 shadow-dark-lg;
@@ -59,7 +59,7 @@
   }
 }
 
-// Scrollbar styling for dark theme
+/* Scrollbar styling for dark theme */
 ::-webkit-scrollbar {
   width: 8px;
 }
