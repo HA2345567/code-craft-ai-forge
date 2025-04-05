@@ -57,6 +57,64 @@
   .text-gradient-dark {
     @apply bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 bg-clip-text text-transparent;
   }
+  
+  .code-block {
+    @apply font-mono text-sm bg-black/30 p-4 border border-white/10 rounded-md;
+  }
+  
+  .code-line {
+    @apply py-0.5;
+  }
+  
+  .method-get {
+    @apply bg-green-500/20 text-green-500 px-2 py-1 rounded text-xs;
+  }
+  
+  .method-post {
+    @apply bg-blue-500/20 text-blue-500 px-2 py-1 rounded text-xs;
+  }
+  
+  .method-put {
+    @apply bg-yellow-500/20 text-yellow-500 px-2 py-1 rounded text-xs;
+  }
+  
+  .method-delete {
+    @apply bg-red-500/20 text-red-500 px-2 py-1 rounded text-xs;
+  }
+  
+  .api-endpoint {
+    @apply bg-secondary p-3 rounded-md border border-white/10 font-mono text-sm;
+  }
+  
+  /* Backend-focused design utilities */
+  .data-type {
+    @apply px-2 py-0.5 rounded text-xs font-mono;
+  }
+  
+  .data-type-string {
+    @apply bg-blue-500/20 text-blue-400;
+  }
+  
+  .data-type-number {
+    @apply bg-green-500/20 text-green-400;
+  }
+  
+  .data-type-boolean {
+    @apply bg-purple-500/20 text-purple-400;
+  }
+  
+  .data-type-object {
+    @apply bg-yellow-500/20 text-yellow-400;
+  }
+  
+  .data-type-array {
+    @apply bg-pink-500/20 text-pink-400;
+  }
+  
+  /* Code editor styling */
+  .code-preview {
+    @apply bg-black/50 border border-white/10 rounded-md overflow-hidden;
+  }
 }
 
 /* Scrollbar styling for dark theme */
