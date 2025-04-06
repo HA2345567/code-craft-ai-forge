@@ -1,6 +1,7 @@
+
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { AIEngineService } from '@/lib/ai-engine/service';
-import { AIEngineInput, AIEngineOutput, BackendFramework, DatabaseType, APIStyle, DataModel, Feature } from '@/lib/ai-engine/types';
+import { AIEngineInput, AIEngineOutput, FrameworkType, DatabaseType, APIStyle, DataModel, Feature } from '@/lib/ai-engine/types';
 import { useToast } from './use-toast';
 
 // Mock API key - in a real app, this would be fetched from an environment variable
@@ -118,12 +119,17 @@ export const createDefaultAIEngineInput = (
   description: string
 ): AIEngineInput => {
   return {
+    name: projectName,
     projectName,
     description,
-    framework: 'express' as BackendFramework,
+    framework: 'express' as FrameworkType,
     database: 'mongodb' as DatabaseType,
     apiStyle: 'rest' as APIStyle,
     dataModels: [] as DataModel[],
     features: ['authentication'] as Feature[],
+    entities: [],
+    endpoints: [],
+    relationships: [],
+    authentication: 'JWT'
   };
-}; 
+};

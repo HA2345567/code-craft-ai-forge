@@ -94,6 +94,13 @@ export class ProjectService {
     try {
       const now = new Date().toISOString();
       
+      // Get the current authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("No authenticated user found");
+      }
+      
       // Prepare project data for Supabase
       const projectData = {
         name: params.name,
@@ -109,7 +116,8 @@ export class ProjectService {
           authentication: params.specification.authentication
         } : {},
         created_at: now,
-        updated_at: now
+        updated_at: now,
+        user_id: user.id  // Add the authenticated user's ID
       };
       
       const { data, error } = await supabase
@@ -122,15 +130,15 @@ export class ProjectService {
       
       // If we have a specification, store it in data_models
       if (params.specification && params.specification.entities) {
-        const dataModelPromises = params.specification.entities.map(entity => {
-          return supabase.from('data_models').insert({
-            project_id: data.id,
-            name: entity.name,
-            fields: entity.fields || []
-          });
-        });
-        
-        await Promise.all(dataModelPromises);
+        for (const entity of params.specification.entities) {
+          await supabase
+            .from('data_models')
+            .insert({
+              project_id: data.id,
+              name: entity.name,
+              fields: entity.fields || []
+            });
+        }
       }
       
       return this.mapProjectFromDb(data);
@@ -169,9 +177,9 @@ export class ProjectService {
       
       if (params.tags !== undefined || params.isPublic !== undefined) {
         // Update only the changed settings properties
-        const settings = currentProject.settings || {};
+        const currentSettings = currentProject.settings || {};
         updateData.settings = {
-          ...settings,
+          ...(typeof currentSettings === 'object' ? currentSettings : {}),
           ...(params.tags !== undefined ? { tags: params.tags } : {}),
           ...(params.isPublic !== undefined ? { isPublic: params.isPublic } : {})
         };
@@ -187,9 +195,13 @@ export class ProjectService {
         };
         
         // Increment version in settings
+        const currentSettingsObj = typeof currentProject.settings === 'object' ? 
+          currentProject.settings : {};
+        const currentVersion = currentSettingsObj?.version || 1;
+        
         updateData.settings = {
-          ...(updateData.settings || currentProject.settings || {}),
-          version: ((currentProject.settings?.version || 1) + 1)
+          ...(updateData.settings || currentSettingsObj || {}),
+          version: currentVersion + 1
         };
         
         // Save version history
@@ -200,61 +212,69 @@ export class ProjectService {
           specification: params.specification
         };
         
-        const versionHistory = currentProject.settings?.versionHistory || [];
+        const versionHistory = currentSettingsObj?.versionHistory || [];
         updateData.settings.versionHistory = [...versionHistory, versionData];
         
         // Update data models if entities are provided
         if (params.specification.entities) {
-          // Delete existing models and create new ones
+          // Delete existing models for this project
           await supabase
             .from('data_models')
             .delete()
             .eq('project_id', id);
-            
-          const dataModelInserts = params.specification.entities.map(entity => {
-            return supabase.from('data_models').insert({
+          
+          // Insert new models
+          for (const entity of params.specification.entities) {
+            await supabase.from('data_models').insert({
               project_id: id,
               name: entity.name,
               fields: entity.fields || []
             });
-          });
-          
-          await Promise.all(dataModelInserts);
+          }
         }
       }
       
       // Update generated output if provided
       if (params.generatedOutput) {
+        const currentSettingsObj = typeof currentProject.settings === 'object' ? 
+          currentProject.settings : {};
+        
         updateData.settings = {
-          ...(updateData.settings || currentProject.settings || {}),
+          ...(updateData.settings || currentSettingsObj || {}),
           generatedOutput: params.generatedOutput
         };
       }
       
       // Update deployment status if provided
       if (params.lastDeployment) {
-        // Store deployment in environments table
-        await supabase
-          .from('environments')
-          .upsert({
-            project_id: id,
-            name: params.lastDeployment.environment || 'production',
-            url: params.lastDeployment.url,
-            status: params.lastDeployment.status,
-            config: params.lastDeployment
-          }, {
-            onConflict: 'project_id,name'
-          });
-        
-        // Add to deployment history
-        const deployHistory = currentProject.deployment_history || [];
-        updateData.deployment_history = [
-          ...deployHistory,
-          {
-            timestamp: updateData.updated_at,
-            ...params.lastDeployment
-          }
-        ];
+        // Check if 'environments' relation exists
+        try {
+          // Store deployment in environments table
+          await supabase
+            .from('environments')
+            .upsert({
+              project_id: id,
+              name: params.lastDeployment.environment || 'production',
+              url: params.lastDeployment.url,
+              status: params.lastDeployment.status,
+              config: params.lastDeployment
+            }, {
+              onConflict: 'project_id,name'
+            });
+          
+          // Add to deployment history
+          const deploymentHistory = currentProject.deployment_history || [];
+          updateData.deployment_history = [
+            ...deploymentHistory,
+            {
+              timestamp: updateData.updated_at,
+              ...params.lastDeployment
+            }
+          ];
+        } catch (error) {
+          console.error('Error updating environments table:', error);
+          // Continue with the update even if the environments table operation fails
+        }
       }
       
       // Perform update
@@ -309,7 +329,8 @@ export class ProjectService {
       
       if (error) throw error;
       
-      return data?.settings?.versionHistory || [];
+      const settings = typeof data?.settings === 'object' ? data.settings : {};
+      return settings?.versionHistory || [];
     } catch (error) {
       console.error(`Error getting versions for project ${id}:`, error);
       return [];
@@ -349,8 +370,8 @@ export class ProjectService {
   private mapProjectFromDb(dbProject: any): Project {
     if (!dbProject) return null as any;
     
-    const settings = dbProject.settings || {};
-    const techStack = dbProject.tech_stack || {};
+    const settings = typeof dbProject.settings === 'object' ? dbProject.settings : {};
+    const techStack = typeof dbProject.tech_stack === 'object' ? dbProject.tech_stack : {};
     
     return {
       id: dbProject.id,
@@ -359,7 +380,7 @@ export class ProjectService {
       createdAt: dbProject.created_at,
       updatedAt: dbProject.updated_at,
       lastDeployment: dbProject.environments?.[0] ? {
-        environment: dbProject.environments[0].name,
+        environment: dbProject.environments[0].name || 'production',
         status: dbProject.environments[0].status,
         url: dbProject.environments[0].url,
         timestamp: dbProject.environments[0].updated_at,

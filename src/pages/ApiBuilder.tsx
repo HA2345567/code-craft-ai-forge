@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -9,14 +9,14 @@ import { CodeXml, Download, Copy, Play, FileJson, Server, Database, Webhook, Che
 import { useToast } from "@/hooks/use-toast";
 import CodePreview from '@/components/builder/CodePreview';
 import { useAIEngine, createDefaultAIEngineInput } from '@/hooks/use-ai-engine';
-import { BackendFramework, DatabaseType, APIStyle, AIEngineInput, Feature } from '@/lib/ai-engine/types';
+import { FrameworkType, DatabaseType, APIStyle, AIEngineInput, Feature } from '@/lib/ai-engine/types';
 import { Progress } from '@/components/ui/progress';
 
 const ApiBuilder = () => {
   const [prompt, setPrompt] = useState('');
   const [projectName, setProjectName] = useState('my-backend-api');
-  const [framework, setFramework] = useState<BackendFramework>('express');
-  const [database, setDatabase] = useState<DatabaseType>('MongoDB');
+  const [framework, setFramework] = useState<FrameworkType>('express');
+  const [database, setDatabase] = useState<DatabaseType>('mongodb');
   const [apiStyle, setApiStyle] = useState<APIStyle>('rest');
   const [features, setFeatures] = useState<Feature[]>(['authentication']);
   
@@ -53,7 +53,6 @@ const ApiBuilder = () => {
       database,
       apiStyle,
       features,
-      // We'll add data models from the DataModels page later
       dataModels: [
         {
           name: "User",
@@ -85,25 +84,27 @@ const ApiBuilder = () => {
           timestamps: true,
           softDeletes: false
         }
-      ]
+      ],
+      entities: [],
+      endpoints: [],
+      relationships: [],
+      name: projectName,
+      authentication: 'JWT'
     };
     
-    // Call the AI Engine
     await generateBackend(input);
   };
   
   const handleCopyCode = () => {
     if (!generatedOutput) return;
     
-    // In a real app, this would copy the code to clipboard
     toast({ 
       title: "Code copied to clipboard",
       description: "The generated code has been copied to your clipboard" 
     });
   };
   
-  // Correctly map GeneratedFile to CodeFile with explicit language casting
-  const codeFiles = generatedOutput?.files.map(file => ({
+  const codeFiles = generatedOutput?.files?.map(file => ({
     path: file.path,
     content: file.content,
     language: (file.language as 'javascript' | 'typescript' | 'python' | 'ruby' | 'java' | 'yaml' | 'json' | 'other') || 'other'
@@ -132,7 +133,7 @@ const ApiBuilder = () => {
               <label htmlFor="framework" className="text-sm font-medium">Framework</label>
               <Select 
                 value={framework}
-                onValueChange={(value) => setFramework(value as BackendFramework)}
+                onValueChange={(value) => setFramework(value as FrameworkType)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a framework" />
