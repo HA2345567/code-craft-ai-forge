@@ -197,7 +197,7 @@ export interface DataModel {
 export type Feature = 'authentication' | 'fileUpload' | 'logging' | 'swagger' | 'testing' | 'docker' | 'cicd' | 'monitoring';
 
 /**
- * Type for backend framework
+ * Type for backend framework - lowercase only for compatibility with API
  */
 export type BackendFramework = 'express' | 'nestjs' | 'fastapi' | 'django' | 'rails' | 'spring';
 
@@ -233,9 +233,11 @@ export interface Entity {
  * Type for the AI engine output
  */
 export interface AIEngineOutput {
-  code: string;
-  message?: string;
+  // Required fields
   success: boolean;
+  code?: string;
+  message?: string;
+  
   // Additional fields used in the app
   files?: GeneratedFile[] | CodeFile[];
   explanation?: string;

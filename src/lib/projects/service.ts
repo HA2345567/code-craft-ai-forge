@@ -1,6 +1,6 @@
 
 import { Project, ProjectFilter, CreateProjectParams, UpdateProjectParams, ProjectVersion } from './types';
-import { AIEngineInput, AIEngineOutput } from '@/lib/ai-engine/types';
+import { AIEngineInput, AIEngineOutput, Field } from '@/lib/ai-engine/types';
 import { DeploymentStatus } from '@/lib/deployment/service';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -131,12 +131,13 @@ export class ProjectService {
       // If we have a specification, store it in data_models
       if (params.specification && params.specification.entities) {
         for (const entity of params.specification.entities) {
+          // Convert the fields to a JSON string to ensure compatibility with Supabase
           await supabase
             .from('data_models')
             .insert({
               project_id: data.id,
               name: entity.name,
-              fields: entity.fields || []
+              fields: JSON.stringify(entity.fields || [])
             });
         }
       }
@@ -178,8 +179,12 @@ export class ProjectService {
       if (params.tags !== undefined || params.isPublic !== undefined) {
         // Update only the changed settings properties
         const currentSettings = currentProject.settings || {};
+        const settingsObj = typeof currentSettings === 'string' 
+          ? JSON.parse(currentSettings) 
+          : (currentSettings || {});
+        
         updateData.settings = {
-          ...(typeof currentSettings === 'object' ? currentSettings : {}),
+          ...settingsObj,
           ...(params.tags !== undefined ? { tags: params.tags } : {}),
           ...(params.isPublic !== undefined ? { isPublic: params.isPublic } : {})
         };
@@ -195,14 +200,14 @@ export class ProjectService {
         };
         
         // Increment version in settings
-        const currentSettingsObj = typeof currentProject.settings === 'object' ? 
-          currentProject.settings : {};
-        const currentVersion = currentSettingsObj?.version || 1;
+        const currentSettingsObj = typeof currentProject.settings === 'string'
+          ? JSON.parse(currentProject.settings)
+          : (currentProject.settings || {});
+          
+        const currentVersion = currentSettingsObj.version || 1;
         
-        updateData.settings = {
-          ...(updateData.settings || currentSettingsObj || {}),
-          version: currentVersion + 1
-        };
+        updateData.settings = updateData.settings || currentSettingsObj || {};
+        updateData.settings.version = currentVersion + 1;
         
         // Save version history
         const versionData = {
@@ -212,7 +217,7 @@ export class ProjectService {
           specification: params.specification
         };
         
-        const versionHistory = currentSettingsObj?.versionHistory || [];
+        const versionHistory = currentSettingsObj.versionHistory || [];
         updateData.settings.versionHistory = [...versionHistory, versionData];
         
         // Update data models if entities are provided
@@ -225,19 +230,22 @@ export class ProjectService {
           
           // Insert new models
           for (const entity of params.specification.entities) {
-            await supabase.from('data_models').insert({
-              project_id: id,
-              name: entity.name,
-              fields: entity.fields || []
-            });
+            await supabase
+              .from('data_models')
+              .insert({
+                project_id: id,
+                name: entity.name,
+                fields: JSON.stringify(entity.fields || [])
+              });
           }
         }
       }
       
       // Update generated output if provided
       if (params.generatedOutput) {
-        const currentSettingsObj = typeof currentProject.settings === 'object' ? 
-          currentProject.settings : {};
+        const currentSettingsObj = typeof currentProject.settings === 'string'
+          ? JSON.parse(currentProject.settings)
+          : (currentProject.settings || {});
         
         updateData.settings = {
           ...(updateData.settings || currentSettingsObj || {}),
@@ -257,7 +265,7 @@ export class ProjectService {
               name: params.lastDeployment.environment || 'production',
               url: params.lastDeployment.url,
               status: params.lastDeployment.status,
-              config: params.lastDeployment
+              config: JSON.stringify(params.lastDeployment)
             }, {
               onConflict: 'project_id,name'
             });
@@ -329,7 +337,12 @@ export class ProjectService {
       
       if (error) throw error;
       
-      const settings = typeof data?.settings === 'object' ? data.settings : {};
+      // Parse the settings object
+      const settingsData = data?.settings;
+      const settings = typeof settingsData === 'string' 
+        ? JSON.parse(settingsData) 
+        : (settingsData || {});
+        
       return settings?.versionHistory || [];
     } catch (error) {
       console.error(`Error getting versions for project ${id}:`, error);
@@ -370,8 +383,17 @@ export class ProjectService {
   private mapProjectFromDb(dbProject: any): Project {
     if (!dbProject) return null as any;
     
-    const settings = typeof dbProject.settings === 'object' ? dbProject.settings : {};
-    const techStack = typeof dbProject.tech_stack === 'object' ? dbProject.tech_stack : {};
+    // Ensure settings is parsed if it's a string
+    const settingsData = dbProject.settings;
+    const settings = typeof settingsData === 'string' 
+      ? JSON.parse(settingsData) 
+      : (settingsData || {});
+    
+    // Ensure tech_stack is parsed if it's a string
+    const techStackData = dbProject.tech_stack;
+    const techStack = typeof techStackData === 'string' 
+      ? JSON.parse(techStackData) 
+      : (techStackData || {});
     
     return {
       id: dbProject.id,
@@ -384,7 +406,9 @@ export class ProjectService {
         status: dbProject.environments[0].status,
         url: dbProject.environments[0].url,
         timestamp: dbProject.environments[0].updated_at,
-        ...dbProject.environments[0].config
+        ...(typeof dbProject.environments[0].config === 'string' 
+          ? JSON.parse(dbProject.environments[0].config) 
+          : dbProject.environments[0].config || {})
       } : undefined,
       
       // Map specification from tech_stack

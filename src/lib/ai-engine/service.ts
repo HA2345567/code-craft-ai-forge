@@ -9,7 +9,8 @@ import {
   GeneratedFile,
   Dependency,
   APIDocumentation,
-  EndpointDocumentation
+  EndpointDocumentation,
+  FrameworkType
 } from './types';
 
 /**
@@ -50,8 +51,11 @@ export class AIEngineService {
    * Create a prompt for the LLM based on user specifications
    */
   private createPrompt(input: AIEngineInput): string {
+    const apiStyleText = input.apiStyle ? input.apiStyle.toUpperCase() : 'REST';
+    const projectNameText = input.projectName || input.name;
+    
     return `
-Generate a ${input.apiStyle.toUpperCase()} API using ${input.framework} framework with ${input.database} database for a project named "${input.projectName}".
+Generate a ${apiStyleText} API using ${input.framework} framework with ${input.database} database for a project named "${projectNameText}".
 
 Project Description:
 ${input.description}
@@ -60,7 +64,7 @@ Data Models:
 ${this.formatDataModels(input)}
 
 Features to include:
-${input.features.join(', ')}
+${input.features?.join(', ') || 'None specified'}
 
 Please provide the complete code for a working backend application.
     `;
@@ -70,6 +74,10 @@ Please provide the complete code for a working backend application.
    * Format data models for the prompt
    */
   private formatDataModels(input: AIEngineInput): string {
+    if (!input.dataModels || input.dataModels.length === 0) {
+      return 'No data models specified';
+    }
+    
     return input.dataModels.map(model => {
       const fields = model.fields.map(field => 
         `  - ${field.name}: ${field.type}${field.required ? ' (required)' : ''}`
@@ -109,9 +117,14 @@ Please provide the complete code for a working backend application.
     // In a real implementation, this would parse the LLM's response
     // Here we'll return a structured mock output that matches the AIEngineOutput interface
     
+    const generatedFiles = this.transformToGeneratedFiles(llmResponse.files, input);
+    const combinedCode = generatedFiles.map(file => `/* ${file.path} */\n${file.content}`).join('\n\n');
+    
     return {
-      files: this.transformToGeneratedFiles(llmResponse.files, input),
-      explanation: `Generated a ${input.apiStyle} API using ${input.framework} and ${input.database} for project "${input.projectName}".`,
+      success: true,
+      code: combinedCode,
+      files: generatedFiles,
+      explanation: `Generated a ${input.apiStyle || 'REST'} API using ${input.framework} and ${input.database} for project "${input.projectName || input.name}".`,
       dependencies: this.getMockDependencies(input),
       setupInstructions: [
         "1. Clone the repository",
@@ -120,8 +133,8 @@ Please provide the complete code for a working backend application.
         "4. Run `npm start` to start the server"
       ],
       apiDocs: {
-        title: `${input.projectName} API Documentation`,
-        description: `API documentation for ${input.projectName} built with ${input.framework} and ${input.database}.`,
+        title: `${input.projectName || input.name} API Documentation`,
+        description: `API documentation for ${input.projectName || input.name} built with ${input.framework} and ${input.database}.`,
         version: "1.0.0",
         endpoints: this.getMockApiEndpoints(input).map(endpoint => ({
           path: endpoint.path,
@@ -146,7 +159,7 @@ Please provide the complete code for a working backend application.
       content: file.content,
       type: this.getFileType(file.path),
       language: this.getLanguageFromExtension(file.path),
-      description: `${this.getFileDescription(file.path)} for ${input.projectName}`
+      description: `${this.getFileDescription(file.path)} for ${input.projectName || input.name}`
     }));
   }
   
@@ -203,7 +216,7 @@ Please provide the complete code for a working backend application.
    * Get mock dependencies based on the framework
    */
   private getMockDependencies(input: AIEngineInput): Dependency[] {
-    if (input.framework === 'express') {
+    if (input.framework.toLowerCase() === 'express') {
       return [
         { name: 'express', version: '^4.18.2', type: 'production' },
         { name: 'mongoose', version: '^7.0.0', type: 'production' },
@@ -211,7 +224,7 @@ Please provide the complete code for a working backend application.
         { name: 'cors', version: '^2.8.5', type: 'production' },
         { name: 'nodemon', version: '^2.0.22', type: 'development' }
       ];
-    } else if (input.framework === 'nestjs') {
+    } else if (input.framework.toLowerCase() === 'nestjs') {
       return [
         { name: '@nestjs/common', version: '^9.0.0', type: 'production' },
         { name: '@nestjs/core', version: '^9.0.0', type: 'production' },
@@ -291,7 +304,8 @@ Please provide the complete code for a working backend application.
   /**
    * Get entry point file based on framework
    */
-  private getEntryPoint(framework: BackendFramework): string {
+  private getEntryPoint(framework: string): string {
+    const frameworkLower = framework.toLowerCase() as BackendFramework;
     const entryPoints: Record<BackendFramework, string> = {
       express: 'server.js',
       nestjs: 'src/main.ts',
@@ -301,7 +315,7 @@ Please provide the complete code for a working backend application.
       spring: 'src/main/java/com/example/Application.java',
     };
     
-    return entryPoints[framework] || 'index.js';
+    return entryPoints[frameworkLower] || 'index.js';
   }
   
   /**
@@ -404,4 +418,4 @@ Please provide the complete code for a working backend application.
     
     return endpoints;
   }
-} 
+}
