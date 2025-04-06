@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useToast } from './use-toast';
 import { ProjectService } from '@/lib/projects/service';
@@ -6,10 +7,11 @@ import {
   ProjectFilter, 
   CreateProjectParams, 
   UpdateProjectParams, 
-  ProjectVersion 
+  ProjectVersion,
+  DeploymentStatus
 } from '@/lib/projects/types';
 import { AIEngineOutput } from '@/lib/ai-engine/types';
-import { DeploymentStatus } from '@/lib/deployment/service';
+import { supabaseClient } from '@/integrations/supabase/client';
 
 interface ProjectContextType {
   projects: Project[];
@@ -49,7 +51,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   });
   
   const { toast } = useToast();
-  const projectService = new ProjectService();
+  const projectService = new ProjectService(supabaseClient);
   
   // Load projects on mount and when filter changes
   useEffect(() => {
@@ -96,6 +98,10 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const createProject = async (params: CreateProjectParams): Promise<Project> => {
     try {
       const newProject = await projectService.createProject(params);
+      
+      if (!newProject) {
+        throw new Error('Failed to create project');
+      }
       
       // Refresh projects list
       await refreshProjects();
@@ -299,4 +305,4 @@ export const useProjects = (): ProjectContextType => {
     throw new Error('useProjects must be used within a ProjectProvider');
   }
   return context;
-}; 
+};

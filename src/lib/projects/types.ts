@@ -1,5 +1,5 @@
+
 import { AIEngineInput, AIEngineOutput } from '@/lib/ai-engine/types';
-import { DeploymentStatus } from '@/lib/deployment/service';
 
 /**
  * Project representing a backend API generation project
@@ -13,7 +13,7 @@ export interface Project {
   lastDeployment?: DeploymentStatus;
   
   // AI generation inputs and outputs
-  specification: AIEngineInput;
+  specification?: AIEngineInput;
   generatedOutput?: AIEngineOutput;
   
   // Project settings and metadata
@@ -22,6 +22,33 @@ export interface Project {
   collaborators?: string[];
   version: number;
   versionHistory?: ProjectVersion[];
+  
+  // Tech stack information (extracted from specification)
+  framework?: string;
+  database?: string;
+  authentication?: string;
+  entities?: Entity[];
+}
+
+/**
+ * Entity representing a data model
+ */
+export interface Entity {
+  name: string;
+  description?: string;
+  fields: Field[];
+}
+
+/**
+ * Field representing a property in a data model
+ */
+export interface Field {
+  name: string;
+  type: string;
+  required: boolean;
+  unique?: boolean;
+  default?: any;
+  description?: string;
 }
 
 /**
@@ -56,7 +83,7 @@ export interface ProjectFilter {
 export interface CreateProjectParams {
   name: string;
   description: string;
-  specification: AIEngineInput;
+  specification?: AIEngineInput;
   tags?: string[];
   isPublic?: boolean;
 }
@@ -72,6 +99,10 @@ export interface UpdateProjectParams {
   isPublic?: boolean;
   generatedOutput?: AIEngineOutput;
   lastDeployment?: DeploymentStatus;
+  entities?: Entity[];
+  framework?: string;
+  database?: string;
+  authentication?: string;
 }
 
 /**
@@ -86,4 +117,17 @@ export interface ProjectCollaborator {
   userId: string;
   role: ProjectRole;
   addedAt: string;
-} 
+}
+
+/**
+ * Deployment status information
+ */
+export interface DeploymentStatus {
+  status: 'pending' | 'building' | 'deployed' | 'published' | 'failed';
+  url?: string;
+  provider?: string;
+  name?: string;
+  config?: Record<string, any>;
+  timestamp: string;
+  error?: string;
+}

@@ -1,6 +1,7 @@
+
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Project, CreateProjectParams, DeploymentStatus } from './types';
-import { DatabaseType, FrameworkType, AuthStrategy } from '@/lib/ai-engine/types';
+import { Project, CreateProjectParams, UpdateProjectParams, ProjectFilter, ProjectVersion, DeploymentStatus, Entity } from './types';
+import { AIEngineOutput } from '@/lib/ai-engine/types';
 
 interface ProjectRecord {
   id: string;
@@ -19,11 +20,12 @@ interface ProjectRecord {
 export class ProjectService {
   private supabase: SupabaseClient;
 
-  constructor(supabaseClient: SupabaseClient) {
-    this.supabase = supabaseClient;
+  constructor(supabaseClient?: SupabaseClient) {
+    // Using type assertion to avoid issues with supabase imports
+    this.supabase = supabaseClient || ({} as SupabaseClient);
   }
 
-  async getProjects(): Promise<Project[]> {
+  async listProjects(filter: ProjectFilter = {}): Promise<Project[]> {
     try {
       const { data: userData, error: userError } = await this.supabase.auth.getUser();
       
@@ -34,11 +36,38 @@ export class ProjectService {
       
       const userId = userData.user.id;
       
-      const { data: projects, error } = await this.supabase
+      let query = this.supabase
         .from('projects')
         .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .eq('user_id', userId);
+      
+      // Apply filters
+      if (filter.search) {
+        query = query.ilike('name', `%${filter.search}%`);
+      }
+      
+      // Apply sorting
+      if (filter.sortBy) {
+        const column = filter.sortBy === 'name' ? 'name' : 
+                      filter.sortBy === 'createdAt' ? 'created_at' : 'updated_at';
+        const ascending = filter.sortDirection !== 'desc';
+        
+        query = query.order(column, { ascending });
+      } else {
+        // Default sort by updated_at desc
+        query = query.order('updated_at', { ascending: false });
+      }
+      
+      // Apply pagination
+      if (filter.limit) {
+        query = query.limit(filter.limit);
+      }
+      
+      if (filter.offset) {
+        query = query.range(filter.offset, filter.offset + (filter.limit || 10) - 1);
+      }
+      
+      const { data: projects, error } = await query;
       
       if (error) {
         console.error('Error fetching projects:', error);
@@ -52,7 +81,11 @@ export class ProjectService {
     }
   }
 
-  async getProjectById(id: string): Promise<Project | null> {
+  async getProjects(): Promise<Project[]> {
+    return this.listProjects();
+  }
+
+  async getProject(id: string): Promise<Project | null> {
     try {
       const { data: projectData, error } = await this.supabase
         .from('projects')
@@ -86,6 +119,16 @@ export class ProjectService {
       
       const now = new Date().toISOString();
       
+      // Extract tech stack from specification if available
+      let techStack = {};
+      if (params.specification) {
+        techStack = {
+          framework: params.specification.framework,
+          database: params.specification.database,
+          authentication: params.specification.authentication
+        };
+      }
+      
       // Create project record
       const { data: projectData, error: projectError } = await this.supabase
         .from('projects')
@@ -97,11 +140,7 @@ export class ProjectService {
             isPublic: params.isPublic || false,
             version: 1
           },
-          tech_stack: params.specification ? {
-            framework: params.specification.framework,
-            database: params.specification.database,
-            authentication: params.specification.authentication
-          } : null,
+          tech_stack: techStack,
           created_at: now,
           updated_at: now,
           user_id: userId
@@ -115,24 +154,28 @@ export class ProjectService {
       }
       
       // If specification is provided, create data models
-      if (params.specification && params.specification.entities && params.specification.entities.length > 0) {
+      if (params.specification?.entities && params.specification.entities.length > 0) {
         for (const entity of params.specification.entities) {
           // Convert fields to JSON to match the database schema
-          const fieldsJson = JSON.parse(JSON.stringify(entity.fields || []));
+          const fieldsJson = JSON.stringify(entity.fields || []);
           
-          const { error } = await this.supabase
-            .from('data_models')
-            .insert({
-              project_id: projectData.id,
-              name: entity.name,
-              fields: fieldsJson,
-              is_timestamped: true,
-              created_at: now,
-              updated_at: now
-            });
-          
-          if (error) {
-            console.error(`Failed to create data model for ${entity.name}:`, error);
+          try {
+            const { error } = await this.supabase
+              .from('data_models')
+              .insert({
+                project_id: projectData.id,
+                name: entity.name,
+                fields: fieldsJson,
+                is_timestamped: true,
+                created_at: now,
+                updated_at: now
+              });
+            
+            if (error) {
+              console.error(`Failed to create data model for ${entity.name}:`, error);
+            }
+          } catch (error) {
+            console.error(`Error creating data model for ${entity.name}:`, error);
           }
         }
       }
@@ -184,7 +227,7 @@ export class ProjectService {
     };
   }
 
-  async updateProject(id: string, data: Partial<Project>): Promise<Project | null> {
+  async updateProject(id: string, data: UpdateProjectParams): Promise<Project | null> {
     try {
       const { data: projectData, error } = await this.supabase
         .from('projects')
@@ -264,22 +307,26 @@ export class ProjectService {
         // For each entity, upsert the data model
         for (const entity of data.entities) {
           // Convert fields to JSON to match the database schema
-          const fieldsJson = JSON.parse(JSON.stringify(entity.fields || []));
+          const fieldsJson = JSON.stringify(entity.fields || []);
           
-          const { error } = await this.supabase
-            .from('data_models')
-            .upsert({
-              project_id: id,
-              name: entity.name,
-              fields: fieldsJson,
-              is_timestamped: true,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'project_id,name'
-            });
-          
-          if (error) {
-            console.error(`Failed to update data model for ${entity.name}:`, error);
+          try {
+            const { error } = await this.supabase
+              .from('data_models')
+              .upsert({
+                project_id: id,
+                name: entity.name,
+                fields: fieldsJson,
+                is_timestamped: true,
+                updated_at: new Date().toISOString()
+              }, {
+                onConflict: 'project_id,name'
+              });
+            
+            if (error) {
+              console.error(`Failed to update data model for ${entity.name}:`, error);
+            }
+          } catch (error) {
+            console.error(`Error updating data model for ${entity.name}:`, error);
           }
         }
       }
@@ -292,7 +339,26 @@ export class ProjectService {
     }
   }
 
-  async updateDeploymentStatus(projectId: string, deploymentStatus: DeploymentStatus): Promise<boolean> {
+  async deleteProject(id: string): Promise<boolean> {
+    try {
+      const { error } = await this.supabase
+        .from('projects')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Error deleting project:', error);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in deleteProject:', error);
+      return false;
+    }
+  }
+
+  async updateProjectDeployment(id: string, deployment: DeploymentStatus): Promise<Project | null> {
     try {
       const now = new Date().toISOString();
       
@@ -300,70 +366,111 @@ export class ProjectService {
       const { data: projectData, error: projectError } = await this.supabase
         .from('projects')
         .select()
-        .eq('id', projectId)
+        .eq('id', id)
         .single();
       
       if (projectError) {
         console.error('Error fetching project for deployment update:', projectError);
-        return false;
+        return null;
       }
       
-      // Create deployment record
-      const { error } = await this.supabase
-        .from('deployments')
-        .insert({
-          project_id: projectId,
-          name: deploymentStatus.name || 'main',
-          status: deploymentStatus.status,
-          url: deploymentStatus.url || '',
-          provider: deploymentStatus.provider || 'lovable',
-          config: JSON.parse(JSON.stringify(deploymentStatus.config || {})),
-          created_at: now,
-          updated_at: now
-        });
+      // Create deployment record - need to stringify the config
+      const deploymentConfig = JSON.stringify(deployment.config || {});
       
-      if (error) {
-        console.error('Error creating deployment record:', error);
-        return false;
+      try {
+        const { error } = await this.supabase
+          .from('environments')
+          .insert({
+            project_id: id,
+            name: deployment.name || 'main',
+            status: deployment.status,
+            url: deployment.url || '',
+            provider: deployment.provider || 'lovable',
+            config: deploymentConfig,
+            created_at: now,
+            updated_at: now
+          });
+        
+        if (error) {
+          console.error('Error creating deployment record:', error);
+        }
+      } catch (error) {
+        console.error('Error inserting deployment record:', error);
       }
       
       // Update project with deployment history
       const deploymentHistory = projectData.deployment_history || [];
       deploymentHistory.push({
         timestamp: now,
-        status: deploymentStatus.status,
-        url: deploymentStatus.url || '',
-        provider: deploymentStatus.provider || 'lovable'
+        status: deployment.status,
+        url: deployment.url || '',
+        provider: deployment.provider || 'lovable'
       });
       
-      const { error: updateError } = await this.supabase
+      const { data: updatedProject, error: updateError } = await this.supabase
         .from('projects')
         .update({
-          publish_url: deploymentStatus.url || projectData.publish_url,
-          published: deploymentStatus.status === 'published',
-          updated_at: now
+          publish_url: deployment.url || projectData.publish_url,
+          published: deployment.status === 'published',
+          updated_at: now,
+          deployment_history: deploymentHistory
         })
-        .eq('id', projectId);
+        .eq('id', id)
+        .select()
+        .single();
       
       if (updateError) {
         console.error('Error updating project with deployment info:', updateError);
-        return false;
+        return null;
       }
       
-      return true;
+      return this.mapProjectData(updatedProject);
       
     } catch (error) {
       console.error('Error in updateDeploymentStatus:', error);
-      return false;
+      return null;
     }
   }
 
-  async getProjectVersion(projectId: string, versionNumber?: number): Promise<Project | null> {
+  async getProjectVersions(id: string): Promise<ProjectVersion[]> {
     try {
       const { data: projectData, error } = await this.supabase
         .from('projects')
         .select()
-        .eq('id', projectId)
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching project versions:', error);
+        return [];
+      }
+      
+      // Check if the settings has version history
+      const settings = typeof projectData.settings === 'object' ? projectData.settings : {};
+      
+      if (!settings || !settings.versionHistory) {
+        return [];
+      }
+      
+      return settings.versionHistory.map((version: any) => ({
+        version: version.version,
+        createdAt: version.timestamp,
+        description: version.description || `Version ${version.version}`,
+        specification: version.specification || {},
+      }));
+      
+    } catch (error) {
+      console.error('Error in getProjectVersions:', error);
+      return [];
+    }
+  }
+
+  async getProjectVersion(id: string, versionNumber?: number): Promise<ProjectVersion | null> {
+    try {
+      const { data: projectData, error } = await this.supabase
+        .from('projects')
+        .select()
+        .eq('id', id)
         .single();
       
       if (error) {
@@ -373,7 +480,16 @@ export class ProjectService {
       
       // If no specific version requested, return current version
       if (!versionNumber) {
-        return this.mapProjectData(projectData);
+        const currentVersion = typeof projectData.settings === 'object' && projectData.settings.version 
+          ? projectData.settings.version 
+          : 1;
+          
+        return {
+          version: currentVersion,
+          createdAt: projectData.updated_at,
+          description: `Current version (${currentVersion})`,
+          specification: {}
+        };
       }
       
       // Check if the settings has version history
@@ -381,7 +497,7 @@ export class ProjectService {
       
       if (!settings || !settings.versionHistory) {
         console.error('No version history found for project');
-        return this.mapProjectData(projectData);
+        return null;
       }
       
       // Find the requested version
@@ -390,20 +506,40 @@ export class ProjectService {
       
       if (!requestedVersion) {
         console.error(`Version ${versionNumber} not found in history`);
-        return this.mapProjectData(projectData);
+        return null;
       }
       
-      // Return the project with the specific version details
-      // This is a simplified implementation - in a real app, you would need to actually
-      // reconstruct the project state at that version
-      
+      // Return the project version details
       return {
-        ...this.mapProjectData(projectData),
-        version: versionNumber
+        version: versionNumber,
+        createdAt: requestedVersion.timestamp,
+        description: requestedVersion.description || `Version ${versionNumber}`,
+        specification: requestedVersion.specification || {}
       };
       
     } catch (error) {
       console.error('Error in getProjectVersion:', error);
+      return null;
+    }
+  }
+  
+  async updateProjectWithOutput(id: string, output: AIEngineOutput): Promise<Project | null> {
+    try {
+      // Get the current project
+      const project = await this.getProject(id);
+      
+      if (!project) {
+        console.error('Project not found');
+        return null;
+      }
+      
+      // Update the project with the generated output
+      return this.updateProject(id, {
+        generatedOutput: output
+      });
+      
+    } catch (error) {
+      console.error('Error updating project with output:', error);
       return null;
     }
   }
