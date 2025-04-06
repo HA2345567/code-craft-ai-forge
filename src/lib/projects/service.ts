@@ -1,546 +1,334 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Project, CreateProjectParams, UpdateProjectParams, ProjectFilter, ProjectVersion, DeploymentStatus, Entity } from './types';
-import { AIEngineOutput } from '@/lib/ai-engine/types';
-
-interface ProjectRecord {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  name: string;
-  description: string;
-  settings: any;
-  tech_stack: any;
-  publish_url: string;
-  published: boolean;
-  user_id: string;
-  deployment_history: any[];
-}
+import { Project, ProjectFilter, CreateProjectParams, UpdateProjectParams, ProjectVersion, DeploymentStatus } from './types';
+import { AIEngineOutput, AIEngineInput } from '@/lib/ai-engine/types';
 
 export class ProjectService {
   private supabase: SupabaseClient;
 
-  constructor(supabaseClient?: SupabaseClient) {
-    // Using type assertion to avoid issues with supabase imports
-    this.supabase = supabaseClient || ({} as SupabaseClient);
+  constructor(supabase: SupabaseClient) {
+    this.supabase = supabase;
   }
 
-  async listProjects(filter: ProjectFilter = {}): Promise<Project[]> {
+  // Get projects with optional filtering
+  async getProjects(filter?: ProjectFilter): Promise<Project[]> {
     try {
-      const { data: userData, error: userError } = await this.supabase.auth.getUser();
-      
-      if (userError || !userData.user) {
-        console.error('Failed to get user:', userError);
-        return [];
-      }
-      
-      const userId = userData.user.id;
-      
       let query = this.supabase
         .from('projects')
-        .select('*')
-        .eq('user_id', userId);
-      
-      // Apply filters
-      if (filter.search) {
-        query = query.ilike('name', `%${filter.search}%`);
-      }
-      
-      // Apply sorting
-      if (filter.sortBy) {
-        const column = filter.sortBy === 'name' ? 'name' : 
-                      filter.sortBy === 'createdAt' ? 'created_at' : 'updated_at';
-        const ascending = filter.sortDirection !== 'desc';
+        .select('*');
+
+      // Apply filters if provided
+      if (filter) {
+        if (filter.search) {
+          query = query.ilike('name', `%${filter.search}%`);
+        }
         
-        query = query.order(column, { ascending });
-      } else {
-        // Default sort by updated_at desc
-        query = query.order('updated_at', { ascending: false });
+        if (filter.tags && filter.tags.length > 0) {
+          query = query.contains('tags', filter.tags);
+        }
+        
+        if (filter.framework) {
+          query = query.eq('framework', filter.framework);
+        }
+        
+        if (filter.database) {
+          query = query.eq('database', filter.database);
+        }
+        
+        // Apply sorting
+        const sortBy = filter.sortBy || 'updatedAt';
+        const sortDirection = filter.sortDirection || 'desc';
+        query = query.order(sortBy, { ascending: sortDirection === 'asc' });
+        
+        // Apply pagination
+        if (filter.limit) {
+          query = query.limit(filter.limit);
+        }
+        
+        if (filter.offset) {
+          query = query.range(filter.offset, (filter.offset + (filter.limit || 10)) - 1);
+        }
       }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
       
-      // Apply pagination
-      if (filter.limit) {
-        query = query.limit(filter.limit);
-      }
-      
-      if (filter.offset) {
-        query = query.range(filter.offset, filter.offset + (filter.limit || 10) - 1);
-      }
-      
-      const { data: projects, error } = await query;
-      
-      if (error) {
-        console.error('Error fetching projects:', error);
-        return [];
-      }
-      
-      return projects.map(this.mapProjectData);
+      return this.mapProjects(data || []);
     } catch (error) {
-      console.error('Error in getProjects:', error);
-      return [];
+      console.error('Error fetching projects:', error);
+      throw error;
     }
   }
 
-  async getProjects(): Promise<Project[]> {
-    return this.listProjects();
-  }
-
+  // Get a single project by ID
   async getProject(id: string): Promise<Project | null> {
     try {
-      const { data: projectData, error } = await this.supabase
+      const { data, error } = await this.supabase
         .from('projects')
-        .select()
+        .select('*')
         .eq('id', id)
         .single();
-      
-      if (error) {
-        console.error('Error fetching project:', error);
-        return null;
-      }
-      
-      return this.mapProjectData(projectData);
-    } catch (error) {
-      console.error('Error in getProjectById:', error);
-      return null;
-    }
-  }
 
-  async createProject(params: CreateProjectParams): Promise<Project | null> {
-    try {
-      // Get the current user
-      const { data: userData, error: userError } = await this.supabase.auth.getUser();
-      
-      if (userError || !userData.user) {
-        console.error('Failed to get user:', userError);
-        return null;
-      }
-      
-      const userId = userData.user.id;
-      
-      const now = new Date().toISOString();
-      
-      // Extract tech stack from specification if available
-      let techStack = {};
-      if (params.specification) {
-        techStack = {
-          framework: params.specification.framework,
-          database: params.specification.database,
-          authentication: params.specification.authentication
-        };
-      }
-      
-      // Create project record
-      const { data: projectData, error: projectError } = await this.supabase
-        .from('projects')
-        .insert({
-          name: params.name,
-          description: params.description,
-          settings: {
-            tags: params.tags || [],
-            isPublic: params.isPublic || false,
-            version: 1
-          },
-          tech_stack: techStack,
-          created_at: now,
-          updated_at: now,
-          user_id: userId
-        })
-        .select()
-        .single();
-      
-      if (projectError) {
-        console.error('Failed to create project:', projectError);
-        return null;
-      }
-      
-      // If specification is provided, create data models
-      if (params.specification?.entities && params.specification.entities.length > 0) {
-        for (const entity of params.specification.entities) {
-          // Convert fields to JSON to match the database schema
-          const fieldsJson = JSON.stringify(entity.fields || []);
-          
-          try {
-            const { error } = await this.supabase
-              .from('data_models')
-              .insert({
-                project_id: projectData.id,
-                name: entity.name,
-                fields: fieldsJson,
-                is_timestamped: true,
-                created_at: now,
-                updated_at: now
-              });
-            
-            if (error) {
-              console.error(`Failed to create data model for ${entity.name}:`, error);
-            }
-          } catch (error) {
-            console.error(`Error creating data model for ${entity.name}:`, error);
-          }
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Record not found
+          return null;
         }
+        throw error;
       }
-      
-      return this.mapProjectData(projectData);
-      
+
+      return this.mapProject(data);
     } catch (error) {
-      console.error('Error in createProject:', error);
-      return null;
+      console.error(`Error fetching project ${id}:`, error);
+      throw error;
     }
   }
 
-  private mapProjectData(projectData: any): Project {
-    // Handle case where projectData might be null or undefined
-    if (!projectData) {
-      return {
-        id: '',
-        name: '',
-        description: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        tags: [],
-        isPublic: false,
-        version: 1,
-        framework: null,
-        database: null,
-        authentication: null
-      };
-    }
-    
-    // Extract tech stack info if available
-    const techStack = projectData.tech_stack || {};
-    
-    // Extract settings
-    const settings = typeof projectData.settings === 'object' ? projectData.settings : {};
-    
-    return {
-      id: projectData.id,
-      name: projectData.name,
-      description: projectData.description || '',
-      createdAt: projectData.created_at,
-      updatedAt: projectData.updated_at,
-      tags: settings.tags || [],
-      isPublic: settings.isPublic || false,
-      version: settings.version || 1,
-      framework: techStack.framework || null,
-      database: techStack.database || null,
-      authentication: techStack.authentication || null
-    };
-  }
-
-  async updateProject(id: string, data: UpdateProjectParams): Promise<Project | null> {
+  // Create a new project
+  async createProject(params: CreateProjectParams): Promise<Project> {
     try {
-      const { data: projectData, error } = await this.supabase
-        .from('projects')
-        .select()
-        .eq('id', id)
-        .single();
+      const { name, description, specification, tags = [], isPublic = false } = params;
       
-      if (error) {
-        console.error('Error fetching project:', error);
-        return null;
-      }
+      // Extract technology info from specification if provided
+      const framework = specification?.framework || undefined;
+      const database = specification?.database || undefined;
+      const authentication = specification?.authentication || undefined;
       
-      // Extract current settings
-      const currentSettings = typeof projectData.settings === 'object' ? projectData.settings : {};
-      
-      // Update the settings with new data
-      const updatedSettings = {
-        ...currentSettings,
-        tags: data.tags || currentSettings.tags || [],
-        isPublic: data.isPublic !== undefined ? data.isPublic : currentSettings.isPublic || false,
-        version: currentSettings.version ? (currentSettings.version + 1) : 1
+      const project = {
+        name,
+        description,
+        specification: specification || {},
+        tags,
+        isPublic,
+        version: 1,
+        framework,
+        database,
+        authentication,
+        entities: specification?.entities || []
       };
       
-      // Update tech stack if provided
-      let techStack = projectData.tech_stack || {};
-      if (data.framework !== undefined || data.database !== undefined || data.authentication !== undefined) {
-        techStack = {
-          ...techStack,
-          framework: data.framework !== undefined ? data.framework : techStack.framework,
-          database: data.database !== undefined ? data.database : techStack.database,
-          authentication: data.authentication !== undefined ? data.authentication : techStack.authentication
-        };
+      const { data, error } = await this.supabase
+        .from('projects')
+        .insert(project)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      return this.mapProject(data);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      throw error;
+    }
+  }
+
+  // Update an existing project
+  async updateProject(id: string, params: UpdateProjectParams): Promise<Project | null> {
+    try {
+      // Get the current project first
+      const currentProject = await this.getProject(id);
+      if (!currentProject) return null;
+      
+      // Create updated project data
+      const updatedProject: Partial<Project> = {
+        ...params,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Handle special cases for framework, database, and authentication
+      if (params.framework !== undefined && params.framework !== currentProject.framework) {
+        updatedProject.framework = params.framework;
       }
       
-      // If there's version history in the settings, append the current version
-      if (currentSettings.versionHistory) {
-        const historyItem = {
-          version: currentSettings.version || 1,
-          timestamp: new Date().toISOString(),
-          changes: Object.keys(data).filter(key => key !== 'version')
+      if (params.database !== undefined && params.database !== currentProject.database) {
+        updatedProject.database = params.database;
+      }
+      
+      if (params.authentication !== undefined && params.authentication !== currentProject.authentication) {
+        updatedProject.authentication = params.authentication;
+      }
+      
+      // Update version history if specification is being updated
+      if (params.specification) {
+        // Current version becomes part of history
+        const versionHistory = currentProject.versionHistory || [];
+        
+        const newHistoryEntry: ProjectVersion = {
+          version: currentProject.version,
+          createdAt: currentProject.updatedAt,
+          description: currentProject.description,
+          specification: currentProject.specification || this.createDefaultSpecification()
         };
         
-        updatedSettings.versionHistory = [
-          ...currentSettings.versionHistory,
-          historyItem
-        ];
-      } else {
-        // Initialize version history
-        updatedSettings.versionHistory = [{
-          version: currentSettings.version || 1,
-          timestamp: new Date().toISOString(),
-          changes: Object.keys(data).filter(key => key !== 'version')
-        }];
+        versionHistory.push(newHistoryEntry);
+        
+        updatedProject.versionHistory = versionHistory;
+        updatedProject.version = currentProject.version + 1;
       }
       
-      // Update the project
-      const { data: updatedProject, error: updateError } = await this.supabase
+      // Handle entity updates if provided
+      if (params.entities !== undefined) {
+        updatedProject.entities = params.entities;
+      }
+      
+      // Perform the update
+      const { data, error } = await this.supabase
         .from('projects')
-        .update({
-          name: data.name || projectData.name,
-          description: data.description !== undefined ? data.description : projectData.description,
-          settings: updatedSettings,
-          tech_stack: techStack,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatedProject)
         .eq('id', id)
         .select()
         .single();
+        
+      if (error) throw error;
       
-      if (updateError) {
-        console.error('Error updating project:', updateError);
-        return null;
-      }
-      
-      // If entities are provided, update data models
-      if (data.entities) {
-        // For each entity, upsert the data model
-        for (const entity of data.entities) {
-          // Convert fields to JSON to match the database schema
-          const fieldsJson = JSON.stringify(entity.fields || []);
-          
-          try {
-            const { error } = await this.supabase
-              .from('data_models')
-              .upsert({
-                project_id: id,
-                name: entity.name,
-                fields: fieldsJson,
-                is_timestamped: true,
-                updated_at: new Date().toISOString()
-              }, {
-                onConflict: 'project_id,name'
-              });
-            
-            if (error) {
-              console.error(`Failed to update data model for ${entity.name}:`, error);
-            }
-          } catch (error) {
-            console.error(`Error updating data model for ${entity.name}:`, error);
-          }
-        }
-      }
-      
-      return this.mapProjectData(updatedProject);
-      
+      return this.mapProject(data);
     } catch (error) {
-      console.error('Error in updateProject:', error);
-      return null;
+      console.error(`Error updating project ${id}:`, error);
+      throw error;
     }
   }
 
+  // Delete a project
   async deleteProject(id: string): Promise<boolean> {
     try {
       const { error } = await this.supabase
         .from('projects')
         .delete()
         .eq('id', id);
-      
-      if (error) {
-        console.error('Error deleting project:', error);
-        return false;
-      }
+        
+      if (error) throw error;
       
       return true;
     } catch (error) {
-      console.error('Error in deleteProject:', error);
-      return false;
+      console.error(`Error deleting project ${id}:`, error);
+      throw error;
     }
   }
 
+  // Get all versions of a project
+  async getProjectVersions(id: string): Promise<ProjectVersion[]> {
+    try {
+      const project = await this.getProject(id);
+      if (!project || !project.versionHistory) return [];
+      
+      return project.versionHistory;
+    } catch (error) {
+      console.error(`Error fetching project versions for ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Get a specific version of a project
+  async getProjectVersion(id: string, version: number): Promise<ProjectVersion | null> {
+    try {
+      const versions = await this.getProjectVersions(id);
+      return versions.find(v => v.version === version) || null;
+    } catch (error) {
+      console.error(`Error fetching version ${version} for project ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Update a project with AI-generated output
+  async updateProjectWithOutput(id: string, output: AIEngineOutput): Promise<Project | null> {
+    try {
+      const currentProject = await this.getProject(id);
+      if (!currentProject) return null;
+      
+      const updatedProject = {
+        generatedOutput: output,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const { data, error } = await this.supabase
+        .from('projects')
+        .update(updatedProject)
+        .eq('id', id)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      return this.mapProject(data);
+    } catch (error) {
+      console.error(`Error updating project ${id} with output:`, error);
+      throw error;
+    }
+  }
+
+  // Update a project with deployment information
   async updateProjectDeployment(id: string, deployment: DeploymentStatus): Promise<Project | null> {
     try {
-      const now = new Date().toISOString();
-      
-      // Get project to update deployment history
-      const { data: projectData, error: projectError } = await this.supabase
-        .from('projects')
-        .select()
-        .eq('id', id)
-        .single();
-      
-      if (projectError) {
-        console.error('Error fetching project for deployment update:', projectError);
-        return null;
-      }
-      
-      // Create deployment record - need to stringify the config
-      const deploymentConfig = JSON.stringify(deployment.config || {});
-      
-      try {
-        const { error } = await this.supabase
-          .from('environments')
-          .insert({
-            project_id: id,
-            name: deployment.name || 'main',
-            status: deployment.status,
-            url: deployment.url || '',
-            provider: deployment.provider || 'lovable',
-            config: deploymentConfig,
-            created_at: now,
-            updated_at: now
-          });
-        
-        if (error) {
-          console.error('Error creating deployment record:', error);
-        }
-      } catch (error) {
-        console.error('Error inserting deployment record:', error);
-      }
-      
-      // Update project with deployment history
-      const deploymentHistory = projectData.deployment_history || [];
-      deploymentHistory.push({
-        timestamp: now,
+      // Convert deployment to a JSON-compatible format
+      const deploymentData = {
         status: deployment.status,
-        url: deployment.url || '',
-        provider: deployment.provider || 'lovable'
-      });
+        url: deployment.url,
+        provider: deployment.provider,
+        name: deployment.name,
+        config: deployment.config || {},
+        timestamp: deployment.timestamp,
+        error: deployment.error
+      };
       
-      const { data: updatedProject, error: updateError } = await this.supabase
+      const { data, error } = await this.supabase
         .from('projects')
         .update({
-          publish_url: deployment.url || projectData.publish_url,
-          published: deployment.status === 'published',
-          updated_at: now,
-          deployment_history: deploymentHistory
+          lastDeployment: deploymentData,
+          updatedAt: new Date().toISOString()
         })
         .eq('id', id)
         .select()
         .single();
+        
+      if (error) throw error;
       
-      if (updateError) {
-        console.error('Error updating project with deployment info:', updateError);
-        return null;
-      }
-      
-      return this.mapProjectData(updatedProject);
-      
+      return this.mapProject(data);
     } catch (error) {
-      console.error('Error in updateDeploymentStatus:', error);
-      return null;
+      console.error(`Error updating project ${id} with deployment:`, error);
+      throw error;
     }
   }
 
-  async getProjectVersions(id: string): Promise<ProjectVersion[]> {
-    try {
-      const { data: projectData, error } = await this.supabase
-        .from('projects')
-        .select()
-        .eq('id', id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching project versions:', error);
-        return [];
-      }
-      
-      // Check if the settings has version history
-      const settings = typeof projectData.settings === 'object' ? projectData.settings : {};
-      
-      if (!settings || !settings.versionHistory) {
-        return [];
-      }
-      
-      return settings.versionHistory.map((version: any) => ({
-        version: version.version,
-        createdAt: version.timestamp,
-        description: version.description || `Version ${version.version}`,
-        specification: version.specification || {},
-      }));
-      
-    } catch (error) {
-      console.error('Error in getProjectVersions:', error);
-      return [];
-    }
+  // Helper method to map database rows to Project objects
+  private mapProject(data: any): Project {
+    return {
+      id: data.id,
+      name: data.name,
+      description: data.description || '',
+      createdAt: data.created_at || data.createdAt,
+      updatedAt: data.updated_at || data.updatedAt,
+      specification: data.specification || this.createDefaultSpecification(),
+      generatedOutput: data.generated_output || data.generatedOutput,
+      lastDeployment: data.last_deployment || data.lastDeployment,
+      tags: data.tags || [],
+      isPublic: data.is_public || data.isPublic || false,
+      collaborators: data.collaborators || [],
+      version: data.version || 1,
+      versionHistory: data.version_history || data.versionHistory || [],
+      framework: data.framework,
+      database: data.database,
+      authentication: data.authentication,
+      entities: data.entities || []
+    };
   }
 
-  async getProjectVersion(id: string, versionNumber?: number): Promise<ProjectVersion | null> {
-    try {
-      const { data: projectData, error } = await this.supabase
-        .from('projects')
-        .select()
-        .eq('id', id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching project version:', error);
-        return null;
-      }
-      
-      // If no specific version requested, return current version
-      if (!versionNumber) {
-        const currentVersion = typeof projectData.settings === 'object' && projectData.settings.version 
-          ? projectData.settings.version 
-          : 1;
-          
-        return {
-          version: currentVersion,
-          createdAt: projectData.updated_at,
-          description: `Current version (${currentVersion})`,
-          specification: {}
-        };
-      }
-      
-      // Check if the settings has version history
-      const settings = typeof projectData.settings === 'object' ? projectData.settings : {};
-      
-      if (!settings || !settings.versionHistory) {
-        console.error('No version history found for project');
-        return null;
-      }
-      
-      // Find the requested version
-      const versionHistory = settings.versionHistory || [];
-      const requestedVersion = versionHistory.find((v: any) => v.version === versionNumber);
-      
-      if (!requestedVersion) {
-        console.error(`Version ${versionNumber} not found in history`);
-        return null;
-      }
-      
-      // Return the project version details
-      return {
-        version: versionNumber,
-        createdAt: requestedVersion.timestamp,
-        description: requestedVersion.description || `Version ${versionNumber}`,
-        specification: requestedVersion.specification || {}
-      };
-      
-    } catch (error) {
-      console.error('Error in getProjectVersion:', error);
-      return null;
-    }
+  // Map an array of database rows to Project objects
+  private mapProjects(data: any[]): Project[] {
+    return data.map(item => this.mapProject(item));
   }
-  
-  async updateProjectWithOutput(id: string, output: AIEngineOutput): Promise<Project | null> {
-    try {
-      // Get the current project
-      const project = await this.getProject(id);
-      
-      if (!project) {
-        console.error('Project not found');
-        return null;
-      }
-      
-      // Update the project with the generated output
-      return this.updateProject(id, {
-        generatedOutput: output
-      });
-      
-    } catch (error) {
-      console.error('Error updating project with output:', error);
-      return null;
-    }
+
+  // Create a default specification object
+  private createDefaultSpecification(): AIEngineInput {
+    return {
+      name: '',
+      description: '',
+      framework: 'Express',
+      database: 'PostgreSQL',
+      authentication: 'JWT',
+      entities: [],
+      endpoints: [],
+      relationships: []
+    };
   }
 }

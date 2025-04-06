@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useToast } from './use-toast';
 import { ProjectService } from '@/lib/projects/service';
@@ -11,7 +10,7 @@ import {
   DeploymentStatus
 } from '@/lib/projects/types';
 import { AIEngineOutput } from '@/lib/ai-engine/types';
-import { supabaseClient } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ProjectContextType {
   projects: Project[];
@@ -51,20 +50,18 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   });
   
   const { toast } = useToast();
-  const projectService = new ProjectService(supabaseClient);
+  const projectService = new ProjectService(supabase);
   
-  // Load projects on mount and when filter changes
   useEffect(() => {
     refreshProjects();
   }, [filter]);
   
-  // Function to refresh projects from the service
   const refreshProjects = async (): Promise<void> => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const loadedProjects = await projectService.listProjects(filter);
+      const loadedProjects = await projectService.getProjects(filter);
       setProjects(loadedProjects);
     } catch (error) {
       console.error('Error loading projects:', error);
@@ -79,7 +76,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Get a specific project by ID
   const getProject = async (id: string): Promise<Project | null> => {
     try {
       return await projectService.getProject(id);
@@ -94,7 +90,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Create a new project
   const createProject = async (params: CreateProjectParams): Promise<Project> => {
     try {
       const newProject = await projectService.createProject(params);
@@ -103,7 +98,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         throw new Error('Failed to create project');
       }
       
-      // Refresh projects list
       await refreshProjects();
       
       toast({
@@ -123,16 +117,13 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Update an existing project
   const updateProject = async (id: string, params: UpdateProjectParams): Promise<Project | null> => {
     try {
       const updatedProject = await projectService.updateProject(id, params);
       
       if (updatedProject) {
-        // Refresh projects list
         await refreshProjects();
         
-        // Update current project if it's the one being edited
         if (currentProject?.id === id) {
           setCurrentProject(updatedProject);
         }
@@ -155,16 +146,13 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Delete a project
   const deleteProject = async (id: string): Promise<boolean> => {
     try {
       const deleted = await projectService.deleteProject(id);
       
       if (deleted) {
-        // Refresh projects list
         await refreshProjects();
         
-        // Clear current project if it's the one being deleted
         if (currentProject?.id === id) {
           setCurrentProject(null);
         }
@@ -187,7 +175,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Get all versions of a project
   const getProjectVersions = async (id: string): Promise<ProjectVersion[]> => {
     try {
       return await projectService.getProjectVersions(id);
@@ -197,7 +184,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Get a specific version of a project
   const getProjectVersion = async (id: string, version: number): Promise<ProjectVersion | null> => {
     try {
       return await projectService.getProjectVersion(id, version);
@@ -207,16 +193,13 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Update a project with generated output
   const updateProjectWithOutput = async (id: string, output: AIEngineOutput): Promise<Project | null> => {
     try {
       const updatedProject = await projectService.updateProjectWithOutput(id, output);
       
       if (updatedProject) {
-        // Refresh the projects list
         await refreshProjects();
         
-        // Update current project if it's the one being updated
         if (currentProject?.id === id) {
           setCurrentProject(updatedProject);
         }
@@ -239,16 +222,13 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
   
-  // Update a project with deployment status
   const updateProjectDeployment = async (id: string, deployment: DeploymentStatus): Promise<Project | null> => {
     try {
       const updatedProject = await projectService.updateProjectDeployment(id, deployment);
       
       if (updatedProject) {
-        // Refresh the projects list
         await refreshProjects();
         
-        // Update current project if it's the one being updated
         if (currentProject?.id === id) {
           setCurrentProject(updatedProject);
         }
