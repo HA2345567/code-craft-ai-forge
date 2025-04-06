@@ -9,6 +9,175 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_models: {
+        Row: {
+          capabilities: Json | null
+          configuration_options: Json | null
+          created_at: string | null
+          id: string
+          name: string
+          pricing_tier: string | null
+          provider: string
+          updated_at: string | null
+        }
+        Insert: {
+          capabilities?: Json | null
+          configuration_options?: Json | null
+          created_at?: string | null
+          id?: string
+          name: string
+          pricing_tier?: string | null
+          provider: string
+          updated_at?: string | null
+        }
+        Update: {
+          capabilities?: Json | null
+          configuration_options?: Json | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          pricing_tier?: string | null
+          provider?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      api_analytics: {
+        Row: {
+          avg_response_time: number | null
+          date: string | null
+          detailed_metrics: Json | null
+          endpoint_id: string | null
+          error_rate: number | null
+          id: string
+          project_id: string
+          request_count: number | null
+        }
+        Insert: {
+          avg_response_time?: number | null
+          date?: string | null
+          detailed_metrics?: Json | null
+          endpoint_id?: string | null
+          error_rate?: number | null
+          id?: string
+          project_id: string
+          request_count?: number | null
+        }
+        Update: {
+          avg_response_time?: number | null
+          date?: string | null
+          detailed_metrics?: Json | null
+          endpoint_id?: string | null
+          error_rate?: number | null
+          id?: string
+          project_id?: string
+          request_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_analytics_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "api_endpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_analytics_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_endpoints: {
+        Row: {
+          created_at: string | null
+          id: string
+          implementation: string | null
+          is_public: boolean | null
+          method: string
+          name: string
+          path: string
+          project_id: string
+          rate_limit: number | null
+          request_schema: Json | null
+          response_schema: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          implementation?: string | null
+          is_public?: boolean | null
+          method: string
+          name: string
+          path: string
+          project_id: string
+          rate_limit?: number | null
+          request_schema?: Json | null
+          response_schema?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          implementation?: string | null
+          is_public?: boolean | null
+          method?: string
+          name?: string
+          path?: string
+          project_id?: string
+          rate_limit?: number | null
+          request_schema?: Json | null
+          response_schema?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_endpoints_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collaborators: {
+        Row: {
+          id: string
+          joined_at: string | null
+          permissions: Json | null
+          project_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string | null
+          permissions?: Json | null
+          project_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string | null
+          permissions?: Json | null
+          project_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collaborators_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       components: {
         Row: {
           category: string | null
@@ -39,39 +208,142 @@ export type Database = {
         }
         Relationships: []
       }
-      projects: {
+      data_models: {
         Row: {
           created_at: string | null
+          fields: Json
+          id: string
+          is_timestamped: boolean | null
+          name: string
+          project_id: string
+          relationships: Json | null
+          updated_at: string | null
+          validation_rules: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          fields: Json
+          id?: string
+          is_timestamped?: boolean | null
+          name: string
+          project_id: string
+          relationships?: Json | null
+          updated_at?: string | null
+          validation_rules?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          fields?: Json
+          id?: string
+          is_timestamped?: boolean | null
+          name?: string
+          project_id?: string
+          relationships?: Json | null
+          updated_at?: string | null
+          validation_rules?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_models_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      environments: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          id: string
+          name: string
+          project_id: string
+          provider: string | null
+          status: string | null
+          updated_at: string | null
+          url: string | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          name: string
+          project_id: string
+          provider?: string | null
+          status?: string | null
+          updated_at?: string | null
+          url?: string | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          provider?: string | null
+          status?: string | null
+          updated_at?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "environments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          ai_model_configs: Json | null
+          analytics_enabled: boolean | null
+          created_at: string | null
+          deployment_history: Json[] | null
           description: string | null
           id: string
           name: string
+          performance_metrics: Json | null
           publish_url: string | null
           published: boolean | null
           settings: Json | null
+          tech_stack: Json | null
           template_id: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          ai_model_configs?: Json | null
+          analytics_enabled?: boolean | null
           created_at?: string | null
+          deployment_history?: Json[] | null
           description?: string | null
           id?: string
           name: string
+          performance_metrics?: Json | null
           publish_url?: string | null
           published?: boolean | null
           settings?: Json | null
+          tech_stack?: Json | null
           template_id?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          ai_model_configs?: Json | null
+          analytics_enabled?: boolean | null
           created_at?: string | null
+          deployment_history?: Json[] | null
           description?: string | null
           id?: string
           name?: string
+          performance_metrics?: Json | null
           publish_url?: string | null
           published?: boolean | null
           settings?: Json | null
+          tech_stack?: Json | null
           template_id?: string | null
           updated_at?: string | null
           user_id?: string
