@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -205,7 +206,7 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onCr
                     <SelectValue placeholder="Select framework" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {frameworks.map((fw) => (
                       <SelectItem key={fw} value={fw}>
                         {fw}
@@ -224,7 +225,7 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onCr
                     <SelectValue placeholder="Select database" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {databases.map((db) => (
                       <SelectItem key={db} value={db}>
                         {db}
@@ -244,7 +245,7 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onCr
                   <SelectValue placeholder="Select authentication strategy" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {authStrategies.map((strategy) => (
                     <SelectItem key={strategy} value={strategy}>
                       {strategy}
@@ -278,4 +279,4 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onCr
   );
 };
 
-export default NewProjectModal; 
+export default NewProjectModal;
