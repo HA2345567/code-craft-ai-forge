@@ -4,14 +4,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, Code2Icon, DatabaseIcon, FolderIcon, PlusIcon, SearchIcon, TagIcon } from "lucide-react";
+import { CalendarIcon, Code2Icon, DatabaseIcon, FolderIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useProjects } from "@/hooks/use-projects";
 import { Project, CreateProjectParams } from "@/lib/projects/types";
 import { formatDistanceToNow } from "date-fns";
 import NewProjectModal from "@/components/projects/NewProjectModal";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Empty } from "@/components/Empty";
 
 const Projects = () => {
@@ -57,7 +56,7 @@ const Projects = () => {
     const [sortBy, sortDirection] = value.split("-");
     setFilter({
       ...filter,
-      sortBy: sortBy as "name" | "createdAt" | "updatedAt",
+      sortBy: sortBy as "name" | "created_at" | "updated_at",
       sortDirection: sortDirection as "asc" | "desc"
     });
   };
@@ -123,14 +122,14 @@ const Projects = () => {
               />
             </div>
             
-            <Select defaultValue="updatedAt-desc" onValueChange={handleSortChange}>
+            <Select defaultValue="updated_at-desc" onValueChange={handleSortChange}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="updatedAt-desc">Last Updated</SelectItem>
-                <SelectItem value="createdAt-desc">Newest</SelectItem>
-                <SelectItem value="createdAt-asc">Oldest</SelectItem>
+                <SelectItem value="updated_at-desc">Last Updated</SelectItem>
+                <SelectItem value="created_at-desc">Newest</SelectItem>
+                <SelectItem value="created_at-asc">Oldest</SelectItem>
                 <SelectItem value="name-asc">Name (A-Z)</SelectItem>
                 <SelectItem value="name-desc">Name (Z-A)</SelectItem>
               </SelectContent>
@@ -308,4 +307,4 @@ const Projects = () => {
   );
 };
 
-export default Projects; 
+export default Projects;
