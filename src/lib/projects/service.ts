@@ -36,7 +36,7 @@ export class ProjectService {
         }
         
         // Apply sorting
-        const sortBy = filter.sortBy || 'updatedAt';
+        const sortBy = filter.sortBy || 'updated_at';
         const sortDirection = filter.sortDirection || 'desc';
         query = query.order(sortBy, { ascending: sortDirection === 'asc' });
         
@@ -90,21 +90,16 @@ export class ProjectService {
     try {
       const { name, description, specification, tags = [], isPublic = false } = params;
       
-      // Extract technology info from specification if provided
-      const framework = specification?.framework || undefined;
-      const database = specification?.database || undefined;
-      const authentication = specification?.authentication || undefined;
-      
       const project = {
         name,
         description,
         specification: specification || {},
         tags,
-        isPublic,
+        is_public: isPublic,
         version: 1,
-        framework,
-        database,
-        authentication,
+        framework: specification?.framework,
+        database: specification?.database,
+        authentication: specification?.authentication,
         entities: specification?.entities || []
       };
       
@@ -130,24 +125,19 @@ export class ProjectService {
       const currentProject = await this.getProject(id);
       if (!currentProject) return null;
       
-      // Create updated project data
-      const updatedProject: Partial<Project> = {
-        ...params,
-        updatedAt: new Date().toISOString()
+      // Create updated project data with correct DB column names
+      const updatedProject: Record<string, any> = {
+        updated_at: new Date().toISOString()
       };
       
-      // Handle special cases for framework, database, and authentication
-      if (params.framework !== undefined && params.framework !== currentProject.framework) {
-        updatedProject.framework = params.framework;
-      }
-      
-      if (params.database !== undefined && params.database !== currentProject.database) {
-        updatedProject.database = params.database;
-      }
-      
-      if (params.authentication !== undefined && params.authentication !== currentProject.authentication) {
-        updatedProject.authentication = params.authentication;
-      }
+      if (params.name !== undefined) updatedProject.name = params.name;
+      if (params.description !== undefined) updatedProject.description = params.description;
+      if (params.tags !== undefined) updatedProject.tags = params.tags;
+      if (params.isPublic !== undefined) updatedProject.is_public = params.isPublic;
+      if (params.framework !== undefined) updatedProject.framework = params.framework;
+      if (params.database !== undefined) updatedProject.database = params.database;
+      if (params.authentication !== undefined) updatedProject.authentication = params.authentication;
+      if (params.entities !== undefined) updatedProject.entities = params.entities;
       
       // Update version history if specification is being updated
       if (params.specification) {
@@ -163,13 +153,9 @@ export class ProjectService {
         
         versionHistory.push(newHistoryEntry);
         
-        updatedProject.versionHistory = versionHistory;
+        updatedProject.version_history = versionHistory;
         updatedProject.version = currentProject.version + 1;
-      }
-      
-      // Handle entity updates if provided
-      if (params.entities !== undefined) {
-        updatedProject.entities = params.entities;
+        updatedProject.specification = params.specification;
       }
       
       // Perform the update
@@ -237,8 +223,8 @@ export class ProjectService {
       if (!currentProject) return null;
       
       const updatedProject = {
-        generatedOutput: output,
-        updatedAt: new Date().toISOString()
+        generated_output: output,
+        updated_at: new Date().toISOString()
       };
       
       const { data, error } = await this.supabase
@@ -274,8 +260,8 @@ export class ProjectService {
       const { data, error } = await this.supabase
         .from('projects')
         .update({
-          lastDeployment: deploymentData,
-          updatedAt: new Date().toISOString()
+          last_deployment: deploymentData,
+          updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select()
@@ -296,16 +282,16 @@ export class ProjectService {
       id: data.id,
       name: data.name,
       description: data.description || '',
-      createdAt: data.created_at || data.createdAt,
-      updatedAt: data.updated_at || data.updatedAt,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
       specification: data.specification || this.createDefaultSpecification(),
-      generatedOutput: data.generated_output || data.generatedOutput,
-      lastDeployment: data.last_deployment || data.lastDeployment,
+      generatedOutput: data.generated_output,
+      lastDeployment: data.last_deployment,
       tags: data.tags || [],
-      isPublic: data.is_public || data.isPublic || false,
+      isPublic: data.is_public || false,
       collaborators: data.collaborators || [],
       version: data.version || 1,
-      versionHistory: data.version_history || data.versionHistory || [],
+      versionHistory: data.version_history || [],
       framework: data.framework,
       database: data.database,
       authentication: data.authentication,

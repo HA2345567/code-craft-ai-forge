@@ -71,7 +71,7 @@ export interface ProjectFilter {
   tags?: string[];
   framework?: string;
   database?: string;
-  sortBy?: 'name' | 'createdAt' | 'updatedAt';
+  sortBy?: 'name' | 'created_at' | 'updated_at';
   sortDirection?: 'asc' | 'desc';
   limit?: number;
   offset?: number;

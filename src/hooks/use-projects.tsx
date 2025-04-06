@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useToast } from './use-toast';
 import { ProjectService } from '@/lib/projects/service';
@@ -45,7 +46,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ProjectFilter>({
-    sortBy: 'updatedAt',
+    sortBy: 'updated_at',
     sortDirection: 'desc'
   });
   

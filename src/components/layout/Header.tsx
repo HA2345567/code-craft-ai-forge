@@ -4,12 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sparkles, Plus, Github, Menu, Bell, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 interface HeaderProps {
   toggleSidebar: () => void;
 }
 
 const Header = ({ toggleSidebar }: HeaderProps) => {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  
+  const handleGithubConnect = () => {
+    toast({
+      title: "GitHub Integration",
+      description: "Connecting to GitHub is coming soon!",
+      duration: 3000,
+    });
+  };
+
   return (
     <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-background/80 backdrop-blur-xl">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
@@ -40,7 +53,12 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
             <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-[10px] text-white">3</span>
           </Button>
           
-          <Button variant="secondary" size="sm" className="hidden sm:flex gap-2 bg-white/5 hover:bg-white/10 text-foreground border border-white/10">
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className="hidden sm:flex gap-2 bg-white/5 hover:bg-white/10 text-foreground border border-white/10"
+            onClick={handleGithubConnect}
+          >
             <Github className="h-4 w-4" />
             <span>Connect</span>
           </Button>
@@ -51,8 +69,10 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
           </Button>
           
           <Avatar className="h-8 w-8 border border-white/20">
-            <AvatarImage src="" alt="User" />
-            <AvatarFallback className="bg-gradient-to-br from-secondary to-primary text-white">U</AvatarFallback>
+            <AvatarImage src={user?.user_metadata?.avatar_url || ""} alt="User" />
+            <AvatarFallback className="bg-gradient-to-br from-secondary to-primary text-white">
+              {user?.email?.[0]?.toUpperCase() || "U"}
+            </AvatarFallback>
           </Avatar>
         </div>
       </div>
