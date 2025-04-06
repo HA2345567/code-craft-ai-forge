@@ -1,35 +1,113 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { CodeXml, Download, Copy, Play, FileJson, Server, Database, Webhook } from 'lucide-react';
+import { CodeXml, Download, Copy, Play, FileJson, Server, Database, Webhook, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import CodePreview from '@/components/builder/CodePreview';
+import { useAIEngine, createDefaultAIEngineInput } from '@/hooks/use-ai-engine';
+import { BackendFramework, DatabaseType, APIStyle, AIEngineInput, Feature } from '@/lib/ai-engine/types';
+import { Progress } from '@/components/ui/progress';
 
 const ApiBuilder = () => {
-  const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
-  const [generated, setGenerated] = useState(false);
+  const [projectName, setProjectName] = useState('my-backend-api');
+  const [framework, setFramework] = useState<BackendFramework>('express');
+  const [database, setDatabase] = useState<DatabaseType>('MongoDB');
+  const [apiStyle, setApiStyle] = useState<APIStyle>('rest');
+  const [features, setFeatures] = useState<Feature[]>(['authentication']);
+  
   const { toast } = useToast();
-
-  const handleGenerateCode = () => {
-    if (!prompt) return;
-    setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      setGenerated(true);
-      toast({
-        title: "Backend Code Generated",
-        description: "Your API code has been successfully generated",
-      });
-    }, 2000);
+  const { 
+    isGenerating, 
+    progress, 
+    generatedOutput, 
+    generateBackend,
+    downloadCode
+  } = useAIEngine();
+  
+  const handleToggleFeature = (feature: Feature) => {
+    setFeatures(prev => 
+      prev.includes(feature) 
+        ? prev.filter(f => f !== feature) 
+        : [...prev, feature]
+    );
   };
+
+  const handleGenerateCode = async () => {
+    if (!prompt || !projectName) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a project name and API description",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const input: AIEngineInput = {
+      ...createDefaultAIEngineInput(projectName, prompt),
+      framework,
+      database,
+      apiStyle,
+      features,
+      // We'll add data models from the DataModels page later
+      dataModels: [
+        {
+          name: "User",
+          tableName: "users",
+          fields: [
+            {
+              name: "username",
+              type: "string",
+              required: true,
+              unique: true,
+              validations: [{ type: "minLength", value: 3 }]
+            },
+            {
+              name: "email",
+              type: "string",
+              required: true,
+              unique: true,
+              validations: [{ type: "pattern", value: "email" }]
+            },
+            {
+              name: "password",
+              type: "string",
+              required: true,
+              unique: false,
+              validations: [{ type: "minLength", value: 8 }]
+            }
+          ],
+          relationships: [],
+          timestamps: true,
+          softDeletes: false
+        }
+      ]
+    };
+    
+    // Call the AI Engine
+    await generateBackend(input);
+  };
+  
+  const handleCopyCode = () => {
+    if (!generatedOutput) return;
+    
+    // In a real app, this would copy the code to clipboard
+    toast({ 
+      title: "Code copied to clipboard",
+      description: "The generated code has been copied to your clipboard" 
+    });
+  };
+  
+  // Correctly map GeneratedFile to CodeFile with explicit language casting
+  const codeFiles = generatedOutput?.files.map(file => ({
+    path: file.path,
+    content: file.content,
+    language: (file.language as 'javascript' | 'typescript' | 'python' | 'ruby' | 'java' | 'yaml' | 'json' | 'other') || 'other'
+  }));
   
   return (
     <div className="space-y-6">
@@ -52,7 +130,10 @@ const ApiBuilder = () => {
           <CardContent className="p-4 space-y-4">
             <div className="space-y-2">
               <label htmlFor="framework" className="text-sm font-medium">Framework</label>
-              <Select defaultValue="express">
+              <Select 
+                value={framework}
+                onValueChange={(value) => setFramework(value as BackendFramework)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a framework" />
                 </SelectTrigger>
@@ -68,7 +149,10 @@ const ApiBuilder = () => {
             
             <div className="space-y-2">
               <label htmlFor="database" className="text-sm font-medium">Database</label>
-              <Select defaultValue="mongodb">
+              <Select 
+                value={database}
+                onValueChange={(value) => setDatabase(value as DatabaseType)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a database" />
                 </SelectTrigger>
@@ -83,7 +167,10 @@ const ApiBuilder = () => {
 
             <div className="space-y-2">
               <label htmlFor="architecture" className="text-sm font-medium">API Style</label>
-              <Select defaultValue="rest">
+              <Select 
+                value={apiStyle}
+                onValueChange={(value) => setApiStyle(value as APIStyle)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select an API style" />
                 </SelectTrigger>
@@ -97,7 +184,58 @@ const ApiBuilder = () => {
             
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium">Project Name</label>
-              <Input id="name" placeholder="my-backend-api" />
+              <Input 
+                id="name" 
+                placeholder="my-backend-api" 
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Features</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    id="authentication" 
+                    checked={features.includes('authentication')}
+                    onChange={() => handleToggleFeature('authentication')}
+                    className="w-4 h-4" 
+                  />
+                  <label htmlFor="authentication" className="text-sm">Authentication</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    id="fileUpload"
+                    checked={features.includes('fileUpload')}
+                    onChange={() => handleToggleFeature('fileUpload')}
+                    className="w-4 h-4" 
+                  />
+                  <label htmlFor="fileUpload" className="text-sm">File Uploads</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    id="logging"
+                    checked={features.includes('logging')}
+                    onChange={() => handleToggleFeature('logging')}
+                    className="w-4 h-4" 
+                  />
+                  <label htmlFor="logging" className="text-sm">Logging</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    id="swagger"
+                    checked={features.includes('swagger')}
+                    onChange={() => handleToggleFeature('swagger')}
+                    className="w-4 h-4" 
+                  />
+                  <label htmlFor="swagger" className="text-sm">Swagger Docs</label>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -150,10 +288,10 @@ const ApiBuilder = () => {
             </div>
             <Button 
               onClick={handleGenerateCode}
-              disabled={loading || !prompt}
+              disabled={isGenerating || !prompt}
               className="gap-2"
             >
-              {loading ? (
+              {isGenerating ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent border-white" />
                   <span>Generating...</span>
@@ -168,6 +306,50 @@ const ApiBuilder = () => {
           </CardFooter>
         </Card>
       </div>
+      
+      {isGenerating && (
+        <Card className="bg-card/50 backdrop-blur-sm overflow-hidden">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-lg font-semibold">Generating API Code</div>
+              <div className="text-sm">{Math.round(progress)}%</div>
+            </div>
+            <Progress value={progress} className="h-2" />
+            <div className="text-sm text-muted-foreground space-y-1">
+              {progress > 10 && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Analyzing requirements</span>
+                </div>
+              )}
+              {progress > 30 && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Generating data models</span>
+                </div>
+              )}
+              {progress > 50 && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Creating API endpoints</span>
+                </div>
+              )}
+              {progress > 70 && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Implementing business logic</span>
+                </div>
+              )}
+              {progress > 90 && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Finalizing code structure</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       <Tabs defaultValue="code" className="w-full">
         <TabsList className="glass-dark">
@@ -184,33 +366,33 @@ const ApiBuilder = () => {
                 <CardDescription>Auto-generated code based on your requirements</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => {
-                  toast({ 
-                    title: "Code copied to clipboard",
-                    description: "The generated code has been copied to your clipboard" 
-                  });
-                }}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleCopyCode}
+                  disabled={!generatedOutput}
+                >
                   <Copy className="h-4 w-4 mr-2" />
                   Copy
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {
-                  toast({ 
-                    title: "Code downloaded",
-                    description: "The generated code has been downloaded as a zip file" 
-                  });
-                }}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={downloadCode}
+                  disabled={!generatedOutput}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0 relative">
-              {!generated ? (
+              {!generatedOutput ? (
                 <div className="flex justify-center items-center h-[500px] text-muted-foreground">
                   Generate backend code first to see the preview
                 </div>
               ) : (
-                <CodePreview />
+                <CodePreview files={codeFiles} />
               )}
             </CardContent>
           </Card>
@@ -218,51 +400,30 @@ const ApiBuilder = () => {
         <TabsContent value="endpoints" className="mt-4">
           <Card className="glass-dark">
             <CardContent className="p-6">
-              {!generated ? (
+              {!generatedOutput ? (
                 <div className="flex justify-center items-center h-64 text-muted-foreground">
                   Generate backend code first to see API endpoints
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="bg-green-500/20 text-green-500 px-2 py-1 rounded text-xs font-mono">GET</div>
-                      <div className="font-mono text-sm text-white">/api/posts</div>
+                  {generatedOutput?.apiDocs?.endpoints?.map((endpoint, index) => (
+                    <div key={index} className="rounded-md bg-secondary/40 p-4 border border-white/5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`
+                          px-2 py-1 rounded text-xs font-mono
+                          ${endpoint.method === 'GET' ? 'bg-green-500/20 text-green-500' : 
+                            endpoint.method === 'POST' ? 'bg-blue-500/20 text-blue-500' :
+                            endpoint.method === 'PUT' ? 'bg-yellow-500/20 text-yellow-500' :
+                            endpoint.method === 'DELETE' ? 'bg-red-500/20 text-red-500' :
+                            'bg-purple-500/20 text-purple-500'}
+                        `}>
+                          {endpoint.method}
+                        </div>
+                        <div className="font-mono text-sm text-white">{endpoint.path}</div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{endpoint.description}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground">Get all blog posts</p>
-                  </div>
-                  
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="bg-blue-500/20 text-blue-500 px-2 py-1 rounded text-xs font-mono">POST</div>
-                      <div className="font-mono text-sm text-white">/api/posts</div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Create a new blog post</p>
-                  </div>
-                  
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="bg-green-500/20 text-green-500 px-2 py-1 rounded text-xs font-mono">GET</div>
-                      <div className="font-mono text-sm text-white">/api/posts/:id</div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Get a specific blog post</p>
-                  </div>
-                  
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="bg-yellow-500/20 text-yellow-500 px-2 py-1 rounded text-xs font-mono">PUT</div>
-                      <div className="font-mono text-sm text-white">/api/posts/:id</div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Update a blog post</p>
-                  </div>
-                  
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="bg-red-500/20 text-red-500 px-2 py-1 rounded text-xs font-mono">DELETE</div>
-                      <div className="font-mono text-sm text-white">/api/posts/:id</div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Delete a blog post</p>
-                  </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -271,71 +432,27 @@ const ApiBuilder = () => {
         <TabsContent value="models" className="mt-4">
           <Card className="glass-dark">
             <CardContent className="p-6">
-              {!generated ? (
+              {!generatedOutput ? (
                 <div className="flex justify-center items-center h-64 text-muted-foreground">
                   Generate backend code first to see data models
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <h3 className="text-lg font-medium mb-3">Post</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">id</div>
-                        <div className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">ObjectID</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">title</div>
-                        <div className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">String</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">content</div>
-                        <div className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">String</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">author</div>
-                        <div className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Ref: User</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">createdAt</div>
-                        <div className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Date</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">updatedAt</div>
-                        <div className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Date</div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {generatedOutput?.apiDocs?.models?.map((model, index) => (
+                    <div key={index} className="rounded-md bg-secondary/40 p-4 border border-white/5">
+                      <h3 className="text-lg font-semibold mb-2">{model.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">{model.description}</p>
+                      <div className="space-y-2">
+                        {model.fields.map((field, fieldIndex) => (
+                          <div key={fieldIndex} className="flex items-start py-1 border-b border-white/5 last:border-0">
+                            <div className="w-1/3 font-mono text-xs">{field.name}</div>
+                            <div className="w-1/3 text-xs text-blue-400">{field.type}</div>
+                            <div className="w-1/3 text-xs text-muted-foreground">{field.description}</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="rounded-md bg-secondary/40 p-4 border border-white/5">
-                    <h3 className="text-lg font-medium mb-3">User</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">id</div>
-                        <div className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">ObjectID</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">username</div>
-                        <div className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">String</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">email</div>
-                        <div className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">String</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">password</div>
-                        <div className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">String (hashed)</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">createdAt</div>
-                        <div className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Date</div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">updatedAt</div>
-                        <div className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Date</div>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -344,37 +461,24 @@ const ApiBuilder = () => {
         <TabsContent value="docs" className="mt-4">
           <Card className="glass-dark">
             <CardContent className="p-6">
-              {!generated ? (
+              {!generatedOutput ? (
                 <div className="flex justify-center items-center h-64 text-muted-foreground">
                   Generate backend code first to see API documentation
                 </div>
               ) : (
-                <div className="prose prose-invert max-w-none">
-                  <h2>API Documentation</h2>
-                  <p>This documentation describes the endpoints available in your generated API.</p>
-                  
-                  <h3>Authentication</h3>
-                  <p>This API uses JWT tokens for authentication. Include the token in the Authorization header:</p>
-                  <pre className="bg-secondary/40 p-3 rounded-md overflow-x-auto"><code>Authorization: Bearer your-token-here</code></pre>
-                  
-                  <h3>Base URL</h3>
-                  <p><code className="bg-secondary/40 px-1 py-0.5 rounded">http://localhost:3000/api</code></p>
-                  
-                  <h3>Endpoints</h3>
-                  <h4>Authentication</h4>
-                  <ul>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">POST /auth/register</code> - Register a new user</li>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">POST /auth/login</code> - Login and get JWT token</li>
-                  </ul>
-                  
-                  <h4>Posts</h4>
-                  <ul>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">GET /posts</code> - Get all posts</li>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">POST /posts</code> - Create a new post (requires authentication)</li>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">GET /posts/:id</code> - Get a specific post</li>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">PUT /posts/:id</code> - Update a post (requires authentication)</li>
-                    <li><code className="bg-secondary/40 px-1 py-0.5 rounded">DELETE /posts/:id</code> - Delete a post (requires authentication)</li>
-                  </ul>
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-xl font-bold mb-2">Overview</h2>
+                    <div className="bg-secondary/20 p-4 rounded-md border border-white/5">
+                      <pre className="text-sm whitespace-pre-wrap">{generatedOutput?.apiDocs?.overview}</pre>
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold mb-2">Setup Instructions</h2>
+                    <div className="bg-secondary/20 p-4 rounded-md border border-white/5 font-mono">
+                      <pre className="text-sm whitespace-pre-wrap">{generatedOutput?.setupInstructions?.join('\n')}</pre>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>

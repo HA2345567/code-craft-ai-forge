@@ -1,242 +1,106 @@
-
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CodeFile } from '@/lib/ai-engine/types';
 
-const CodePreview = () => {
-  const [activeFile, setActiveFile] = useState('server');
+interface CodePreviewProps {
+  files?: CodeFile[];
+}
 
-  return (
-    <div className="code-preview h-[500px] overflow-hidden flex flex-col">
-      <Tabs value={activeFile} onValueChange={setActiveFile} className="w-full">
-        <div className="border-b border-white/10 bg-black/40 p-2">
-          <TabsList className="bg-secondary/40 grid w-full grid-cols-4 h-9">
-            <TabsTrigger value="server" className="text-xs">server.js</TabsTrigger>
-            <TabsTrigger value="models" className="text-xs">product.model.js</TabsTrigger>
-            <TabsTrigger value="routes" className="text-xs">product.routes.js</TabsTrigger>
-            <TabsTrigger value="controller" className="text-xs">product.controller.js</TabsTrigger>
-          </TabsList>
-        </div>
-        
-        <div className="overflow-y-auto h-full">
-          <TabsContent value="server" className="mt-0 p-0">
-            <pre className="language-javascript p-4 text-sm font-mono">
-              <code>{serverJs}</code>
-            </pre>
-          </TabsContent>
-          <TabsContent value="models" className="mt-0 p-0">
-            <pre className="language-javascript p-4 text-sm font-mono">
-              <code>{productModel}</code>
-            </pre>
-          </TabsContent>
-          <TabsContent value="routes" className="mt-0 p-0">
-            <pre className="language-javascript p-4 text-sm font-mono">
-              <code>{productRoutes}</code>
-            </pre>
-          </TabsContent>
-          <TabsContent value="controller" className="mt-0 p-0">
-            <pre className="language-javascript p-4 text-sm font-mono">
-              <code>{productController}</code>
-            </pre>
-          </TabsContent>
-        </div>
-      </Tabs>
-      
-      <div className="flex justify-end items-center p-2 border-t border-white/10 bg-black/40">
-        <Button variant="outline" size="sm">Run in Sandbox</Button>
-      </div>
-    </div>
-  );
-};
-
-const serverJs = `const express = require('express');
+const CodePreview: React.FC<CodePreviewProps> = ({ files = [] }) => {
+  const [selectedFile, setSelectedFile] = useState(files.length > 0 ? 0 : -1);
+  
+  // Display mock code if no files are provided
+  if (!files || files.length === 0) {
+    const mockCode = `// Example Express.js server code
+const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const productRoutes = require('./routes/product.routes');
-
-// Load environment variables
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/myapp', {
+mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error(err));
 
 // Routes
-app.use('/api/products', productRoutes);
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
-});
+app.use('/api/users', require('./routes/users'));
+app.use('/api/posts', require('./routes/posts'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ error: err.message });
+  res.status(500).json({ message: 'Server error' });
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
-});`;
+app.listen(PORT, () => console.log(\`Server running on port \${PORT}\`));`;
 
-const productModel = `const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
-
-const productSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: true 
-  },
-  description: { 
-    type: String 
-  },
-  price: { 
-    type: Number, 
-    required: true 
-  },
-  stock: { 
-    type: Number, 
-    default: 0 
-  },
-  category: { 
-    type: String 
-  }
-}, { 
-  timestamps: true 
-});
-
-// Add virtual property for availability
-productSchema.virtual('isInStock').get(function() {
-  return this.stock > 0;
-});
-
-// Add pre-save middleware
-productSchema.pre('save', function(next) {
-  // Ensure price is not negative
-  if (this.price < 0) {
-    this.price = 0;
-  }
-  next();
-});
-
-const Product = mongoose.model('Product', productSchema);
-
-module.exports = Product;`;
-
-const productRoutes = `const express = require('express');
-const router = express.Router();
-const productController = require('../controllers/product.controller');
-
-// GET all products
-router.get('/', productController.getAllProducts);
-
-// GET single product by ID
-router.get('/:id', productController.getProductById);
-
-// POST new product
-router.post('/', productController.createProduct);
-
-// PUT update product
-router.put('/:id', productController.updateProduct);
-
-// DELETE product
-router.delete('/:id', productController.deleteProduct);
-
-module.exports = router;`;
-
-const productController = `const Product = require('../models/product.model');
-
-// Get all products
-exports.getAllProducts = async (req, res) => {
-  try {
-    // Support for query parameters like limit, sort, etc.
-    const { limit = 10, sort = 'createdAt', category } = req.query;
-    
-    // Build query
-    let query = {};
-    if (category) query.category = category;
-    
-    const products = await Product.find(query)
-      .sort(sort)
-      .limit(Number(limit));
-      
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Get single product by ID
-exports.getProductById = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    res.json(product);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Create new product
-exports.createProduct = async (req, res) => {
-  try {
-    const product = new Product(req.body);
-    await product.save();
-    res.status(201).json(product);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// Update product
-exports.updateProduct = async (req, res) => {
-  try {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
+    return (
+      <div className="relative min-h-[500px]">
+        <div className="absolute inset-0 overflow-auto p-4 bg-background font-mono text-sm text-foreground/80 whitespace-pre">
+          {mockCode}
+        </div>
+      </div>
     );
-    
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    res.json(product);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
   }
+  
+  // Function to highlight code based on language/extension
+  const highlightCode = (content: string, language: string) => {
+    // Basic syntax highlighting based on language
+    // In a real app, you'd use a library like Prism.js or highlight.js
+    return content;
+  };
+  
+  // Function to get file extension
+  const getFileExtension = (path: string) => {
+    return path.split('.').pop() || '';
+  };
+  
+  // Function to get a shorter file name
+  const getShortFileName = (path: string) => {
+    const parts = path.split('/');
+    return parts[parts.length - 1];
+  };
+  
+  return (
+    <div className="grid grid-cols-12 h-[500px] text-sm">
+      {/* File explorer sidebar */}
+      <div className="col-span-3 md:col-span-2 border-r border-white/10 bg-secondary/20 overflow-y-auto">
+        <div className="p-2 border-b border-white/10 text-xs font-medium">Files</div>
+        <ul className="text-xs">
+          {files.map((file, index) => (
+            <li key={index}>
+              <button
+                onClick={() => setSelectedFile(index)}
+                className={`w-full text-left px-2 py-1.5 truncate hover:bg-secondary/30 ${selectedFile === index ? 'bg-primary/20 text-primary' : ''}`}
+              >
+                {getShortFileName(file.path)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      
+      {/* Code content */}
+      <div className="col-span-9 md:col-span-10 relative bg-background">
+        {selectedFile >= 0 && (
+          <>
+            <div className="sticky top-0 z-10 px-4 py-2 bg-secondary/20 border-b border-white/10 text-xs text-muted-foreground truncate">
+              {files[selectedFile].path}
+            </div>
+            <div className="p-4 font-mono text-xs overflow-auto h-[calc(500px-36px)] whitespace-pre">
+              {highlightCode(files[selectedFile].content, getFileExtension(files[selectedFile].path))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
-
-// Delete product
-exports.deleteProduct = async (req, res) => {
-  try {
-    const product = await Product.findByIdAndDelete(req.params.id);
-    
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};`;
 
 export default CodePreview;

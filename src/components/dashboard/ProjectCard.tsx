@@ -1,59 +1,82 @@
-
 import React from 'react';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Code, MoreVertical } from 'lucide-react';
-import { Project } from '@/types/project';
-import { formatDistanceToNow } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Clock, ExternalLink, Code, Database, Settings } from 'lucide-react';
+import { Project } from '@/data/mock-data';
 
 interface ProjectCardProps {
   project: Project;
 }
 
-const ProjectCard = ({ project }: ProjectCardProps) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
+  // Format date to a readable format
+  const formatDate = (dateString: string) => {
+    const options = { year: 'numeric', month: 'short', day: 'numeric' } as const;
+    return new Date(dateString).toLocaleDateString('en-US', options);
+  };
+
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden h-full flex flex-col transition-all hover:shadow-md hover:border-primary/20">
       <CardHeader className="p-4 border-b border-border">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <div>
-            <h3 className="font-medium">{project.name}</h3>
-            <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}
-            </p>
-          </div>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4">
-        <div className="flex flex-col h-full gap-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Framework</p>
-            <p className="text-sm">{project.framework}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Database</p>
-            <p className="text-sm">{project.database}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Status</p>
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${project.status === 'deployed' ? 'bg-green-500' : 'bg-amber-500'}`}></span>
-              <p className="text-sm capitalize">{project.status}</p>
+            <CardTitle className="text-lg truncate">{project.name}</CardTitle>
+            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              <span>Updated {formatDate(project.lastModified)}</span>
             </div>
           </div>
+          <Badge 
+            variant={
+              project.deploymentStatus === 'deployed' ? 'default' : 
+              project.deploymentStatus === 'development' ? 'secondary' : 
+              'outline'
+            }
+            className="text-xs"
+          >
+            {project.deploymentStatus}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 flex-grow">
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+          {project.description}
+        </p>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-1">
+            <Code className="h-3 w-3 text-blue-400" />
+            <span>{project.framework}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Database className="h-3 w-3 text-green-400" />
+            <span>{project.database}</span>
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <Badge variant="outline" className="text-[10px] h-4">
+              {project.apiStyle}
+            </Badge>
+          </div>
+          {project.stats && (
+            <div className="flex items-center gap-1 mt-1 text-muted-foreground">
+              <span>
+                {project.stats.endpoints} endpoints
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0 flex gap-2">
-        <Button size="sm" variant="secondary" className="flex-1 gap-2">
-          <Eye className="h-4 w-4" />
-          <span>View</span>
+      <CardFooter className="p-4 pt-0 border-t border-border mt-auto flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1">
+          <Settings className="h-3.5 w-3.5 mr-1.5" />
+          <span>Edit</span>
         </Button>
-        <Button size="sm" variant="outline" className="flex-1 gap-2">
-          <Code className="h-4 w-4" />
-          <span>Code</span>
-        </Button>
+        {project.deploymentStatus === 'deployed' && (
+          <Button size="sm" className="flex-1">
+            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+            <span>View</span>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
