@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +56,6 @@ const Projects = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   
-  // Load favorites from localStorage
   useEffect(() => {
     const storedFavorites = localStorage.getItem('project-favorites');
     if (storedFavorites) {
@@ -70,7 +68,6 @@ const Projects = () => {
     }
   }, []);
   
-  // Extract unique tags from all projects
   useEffect(() => {
     if (!isLoading && projects.length > 0) {
       const tags = new Set<string>();
@@ -83,7 +80,6 @@ const Projects = () => {
     }
   }, [projects, isLoading]);
   
-  // Handle project creation
   const handleCreateProject = async (params: CreateProjectParams) => {
     try {
       await createProject(params);
@@ -95,19 +91,16 @@ const Projects = () => {
     }
   };
   
-  // Handle search input change
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
     
-    // Update filter with search query
     setFilter({
       ...filter,
       search: query || undefined
     });
   };
   
-  // Handle sort change
   const handleSortChange = (value: string) => {
     const [sortBy, sortDirection] = value.split("-");
     setFilter({
@@ -117,7 +110,6 @@ const Projects = () => {
     });
   };
   
-  // Handle framework filter change
   const handleFrameworkChange = (value: string) => {
     const framework = value === "all" ? undefined : value;
     setSelectedFramework(framework);
@@ -127,7 +119,6 @@ const Projects = () => {
     });
   };
   
-  // Handle database filter change
   const handleDatabaseChange = (value: string) => {
     const database = value === "all" ? undefined : value;
     setSelectedDatabase(database);
@@ -137,7 +128,6 @@ const Projects = () => {
     });
   };
   
-  // Handle tag selection
   const handleTagChange = (tags: string[]) => {
     setSelectedTags(tags);
     setFilter({
@@ -146,19 +136,14 @@ const Projects = () => {
     });
   };
   
-  // Format the date for display
   const formatDate = (date: Date) => {
     return formatDistanceToNow(new Date(date), { addSuffix: true });
   };
   
-  // Handle click on a project
   const handleProjectClick = (project: Project) => {
     setCurrentProject(project);
-    // Navigate to project details or API builder with this project
-    // We'll implement this navigation in a future update
   };
   
-  // Toggle favorite status
   const toggleFavorite = (projectId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     
@@ -178,7 +163,6 @@ const Projects = () => {
     });
   };
   
-  // Copy project ID to clipboard
   const copyProjectId = (projectId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     navigator.clipboard.writeText(projectId);
@@ -190,7 +174,6 @@ const Projects = () => {
     });
   };
   
-  // Share project (mock functionality)
   const shareProject = (project: Project, event: React.MouseEvent) => {
     event.stopPropagation();
     
@@ -201,7 +184,6 @@ const Projects = () => {
     });
   };
   
-  // Handle refresh button click
   const handleRefresh = () => {
     refreshProjects();
     toast({
@@ -211,7 +193,6 @@ const Projects = () => {
     });
   };
   
-  // Clear all filters
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedFramework(undefined);
@@ -229,7 +210,6 @@ const Projects = () => {
     });
   };
   
-  // Count active filters
   const activeFiltersCount = [
     searchQuery, 
     selectedFramework, 
@@ -237,10 +217,8 @@ const Projects = () => {
     ...(selectedTags || [])
   ].filter(Boolean).length;
   
-  // Filter projects for the "Favorites" tab
   const favoriteProjects = projects.filter(project => favorites.includes(project.id));
   
-  // Filter projects for the "Recent" tab - most recent 6 projects
   const recentProjects = projects
     .slice()
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())

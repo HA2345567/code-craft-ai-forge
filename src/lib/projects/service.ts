@@ -98,9 +98,8 @@ export class ProjectService {
         is_public: isPublic,
         version: 1,
         framework: specification?.framework,
-        database: specification?.database,
-        authentication: specification?.authentication,
-        entities: specification?.entities || []
+        database: specification?.database
+        // Removed authentication field that's causing the error
       };
       
       const { data, error } = await this.supabase
@@ -136,7 +135,7 @@ export class ProjectService {
       if (params.isPublic !== undefined) updatedProject.is_public = params.isPublic;
       if (params.framework !== undefined) updatedProject.framework = params.framework;
       if (params.database !== undefined) updatedProject.database = params.database;
-      if (params.authentication !== undefined) updatedProject.authentication = params.authentication;
+      // Removed authentication field that's causing the error
       if (params.entities !== undefined) updatedProject.entities = params.entities;
       
       // Update version history if specification is being updated
@@ -294,7 +293,7 @@ export class ProjectService {
       versionHistory: data.version_history || [],
       framework: data.framework,
       database: data.database,
-      authentication: data.authentication,
+      // Removed authentication field that's causing the error
       entities: data.entities || []
     };
   }

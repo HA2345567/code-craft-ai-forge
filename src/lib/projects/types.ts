@@ -26,7 +26,7 @@ export interface Project {
   // Tech stack information (extracted from specification)
   framework?: string;
   database?: string;
-  authentication?: string;
+  // Removed authentication field that doesn't exist in the database
   entities?: Entity[];
 }
 
